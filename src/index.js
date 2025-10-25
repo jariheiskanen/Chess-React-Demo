@@ -5,6 +5,7 @@ import "./App.css";
 import App from "./App";
 
 //npm start in console to launch the app
+//npm run deploy
 
 const root = createRoot(document.getElementById("root"));
 root.render(
