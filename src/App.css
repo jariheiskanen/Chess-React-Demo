@@ -1,0 +1,58 @@
+body
+{
+  text-align: center;
+}
+
+#root
+{
+  margin-top: 200px;
+  display: inline-flex;
+  justify-content: center;
+  width: 560px;
+  flex-wrap: wrap;
+}
+
+.chess-board
+{
+  border: 1px solid #cacaca;
+  -webkit-user-select: none; /* Safari */
+  -ms-user-select: none; /* IE 10 and IE 11 */
+  user-select: none; /* Standard syntax */
+}
+
+.board-row
+{
+  display: flex;
+  justify-content: center;
+}
+
+.board-row:nth-child(even) .square:nth-child(odd), .board-row:nth-child(odd) .square:nth-child(even)
+{
+  background-color: #9dd09d;
+}
+
+.board-row:nth-child(odd) .square:nth-child(odd), .board-row:nth-child(even) .square:nth-child(even)
+{
+  background-color: beige;
+}
+
+.square
+{
+  width: 70px;
+  height: 70px;
+  text-align: center;
+  line-height: 70px;
+  font-size: 50px;
+}
+
+.white-piece
+{
+  color: white;
+  text-shadow: 0 0 3px #000;
+}
+
+.black-piece
+{
+  color: black;
+  text-shadow: 0 0 3px #ffffff;
+}
