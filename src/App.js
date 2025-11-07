@@ -1,14 +1,13 @@
 /*
 TODO:
 - implement piece logic
-- make piece to fill whole square
 - implement castling
-- implement sound on move
 - implement check
 - implement checkmate
 - implement stalemate
-- show selected piece
+- implement win/draw conditions
 - add UI
+- refactor and combine code in getLegalMoves
 */
 
 import { useState, useEffect, useRef } from 'react';
@@ -26,16 +25,16 @@ export default function App() {
 function initBoard(setBoardArray)
 {
   const pieces = ["♜","♞","♝","♛","♚","♝","♞","♜"];
-  const copy = Array.from({ length: 8 }, () => Array.from({ length: 8 }, () => ({piece: null, color: null, captureClass: ""})));
+  const copy = Array.from({ length: 8 }, () => Array.from({ length: 8 }, () => ({piece: null, color: null, cssClass: ""})));
 
   for(let i=0; i<pieces.length; i++)
   {
-    copy[0][i] = {piece: pieces[i], color: "white", captureClass: ""};
-    copy[7][i] = {piece: pieces[i], color: "black", captureClass: ""};
+    copy[0][i] = {piece: pieces[i], color: "white", cssClass: ""};
+    copy[7][i] = {piece: pieces[i], color: "black", cssClass: ""};
   }
   
-  copy[1] = Array(8).fill({piece: "♟", color: "white", captureClass: ""});
-  copy[6] = Array(8).fill({piece: "♟", color: "black", captureClass: ""});
+  copy[1] = Array(8).fill({piece: "♟", color: "white", cssClass: ""});
+  copy[6] = Array(8).fill({piece: "♟", color: "black", cssClass: ""});
 
   setBoardArray(copy);
 }
@@ -114,7 +113,7 @@ function getLegalMoves(y_coord, x_coord, type, color, board_array, turn)
 
       while(coordY <= 7 && coordY >= 0 && coordX <=7 && coordX >= 0) //within bounds
       {
-        if(!isOccupied(board_array[coordY][x_coord].piece)) //empty square
+        if(!isOccupied(board_array[coordY][coordX].piece)) //empty square
         {
           tempArr.push({coordX: coordX, coordY: coordY, hidden: false});
         }
@@ -159,11 +158,46 @@ function getLegalMoves(y_coord, x_coord, type, color, board_array, turn)
       }
     }
   }
+  else if(type === "♝")
+  {
+    //movement array
+    const mvt_arr = [{y: 1, x: 1}, {y: -1, x: 1}, {y: -1, x: -1}, {y: 1, x: -1}];
+
+    //loop through movement array
+    for(let i=0; i<mvt_arr.length; i++)
+    {
+      let mvt_horizontal = mvt_arr[i].y;
+      let mvt_vertical = mvt_arr[i].x;
+
+      let coordY = y_coord+mvt_horizontal;
+      let coordX = x_coord+mvt_vertical;
+
+      while(coordY <= 7 && coordY >= 0 && coordX <=7 && coordX >= 0) //within bounds
+      {
+        if(!isOccupied(board_array[coordY][coordX].piece)) //empty square
+        {
+          tempArr.push({coordX: coordX, coordY: coordY, hidden: false});
+        }
+        else
+        {
+          if(turn !== board_array[coordY][coordX].color) //capture if opposite color
+          {
+            tempArr.push({coordX: coordX, coordY: coordY, hidden: true});
+          }
+          break; //exit after piece blocks the way
+        }
+
+        //check next square in same direction
+        coordY = coordY+mvt_horizontal;
+        coordX = coordX+mvt_vertical;
+      }
+    }
+  }
   return tempArr;
 }
 
 //sets highlights based on legal move array
-function highLightMoves(board_array, setBoardArray, legalMoves)
+function highLightMoves(board_array, setBoardArray, legalMoves, index_y, index_x)
 {
   //create deep copy
   const copy = board_array.map(row => row.map(cell => ({ ...cell })));
@@ -172,10 +206,10 @@ function highLightMoves(board_array, setBoardArray, legalMoves)
   {
     for(let j=0; j<8; j++)
     {
-      copy[i][j].captureClass = "";
+      copy[i][j].cssClass = "";
       if(copy[i][j].piece === "●")
       {
-        copy[i][j] = {piece: null, color: null, captureClass: ""};
+        copy[i][j] = {piece: null, color: null, cssClass: ""};
       }
     }
   }
@@ -185,20 +219,23 @@ function highLightMoves(board_array, setBoardArray, legalMoves)
   {
     if(legalMoves.current[i].hidden === false) //show possible moves
     {
-      copy[legalMoves.current[i].coordY][legalMoves.current[i].coordX] = {piece: "●", color: null, captureClass: ""};
+      copy[legalMoves.current[i].coordY][legalMoves.current[i].coordX] = {piece: "●", color: null, cssClass: ""};
     }
     else //show captures
     {
-      copy[legalMoves.current[i].coordY][legalMoves.current[i].coordX].captureClass = "capture";
+      copy[legalMoves.current[i].coordY][legalMoves.current[i].coordX].cssClass = "capture";
     }
   }
+
+  copy[index_y][index_x].cssClass = "selected";
+
   setBoardArray(copy);
 }
 
 //chess board
 function ChessBoard() 
 {
-  const [board_array, setBoardArray] = useState(Array.from({ length: 8 }, () => Array.from({ length: 8 }, () => ({piece: null, color: null, captureClass: ""}))));
+  const [board_array, setBoardArray] = useState(Array.from({ length: 8 }, () => Array.from({ length: 8 }, () => ({piece: null, color: null, cssClass: ""}))));
   const [playSound] = useSound(piece_audio); //piece moving sound effect
 
   let legalMoves = useRef([]);
@@ -229,7 +266,7 @@ function ChessBoard()
       legalMoves.current = getLegalMoves(index_y, index_x, selectedType.current, selectedColor.current, board_array, turn_to_move.current);
       
       //highlight legal moves
-      highLightMoves(board_array, setBoardArray, legalMoves);      
+      highLightMoves(board_array, setBoardArray, legalMoves, index_y, index_x);
     }
   }
 
@@ -240,19 +277,21 @@ function ChessBoard()
       const copy = board_array.map(row => row.map(cell => ({ ...cell })));
       if(legalMoves.current.some(e => e.coordY === index_y && e.coordX === index_x)) //perform legal move
       {
-        copy[index_y][index_x] = {piece: selectedType.current, color: selectedColor.current, captureClass: ""}; //move piece
-        copy[selectedCoordY.current][selectedCoordX.current] = {piece: null, color: null, captureClass: ""}; //clear original position
+        copy[index_y][index_x] = {piece: selectedType.current, color: selectedColor.current, cssClass: ""}; //move piece
+        copy[selectedCoordY.current][selectedCoordX.current] = {piece: null, color: null, cssClass: ""}; //clear original position
         turn_to_move.current = (turn_to_move.current === "black") ? "white" : "black";
         playSound();
       }
 
-      //remove highlights
+      //remove highlights, happens also on illegal move attempt to cancel selection
       for(let i=0; i<legalMoves.current.length; i++)
       {
-        copy[legalMoves.current[i].coordY][legalMoves.current[i].coordX].captureClass = "";
+        //reset selected piece and captured piece classes
+        copy[legalMoves.current[i].coordY][legalMoves.current[i].coordX].cssClass = "";
+        copy[selectedCoordY.current][selectedCoordX.current].cssClass = "";
         if(copy[legalMoves.current[i].coordY][legalMoves.current[i].coordX].piece === "●")
         {
-          copy[legalMoves.current[i].coordY][legalMoves.current[i].coordX] = {piece: null, color: null, captureClass: ""};
+          copy[legalMoves.current[i].coordY][legalMoves.current[i].coordX] = {piece: null, color: null, cssClass: ""};
         }
       }
       setBoardArray(copy);
@@ -277,7 +316,7 @@ function ChessBoard()
     let row_arr = [];
     for(let j=0; j<8; j++)
     {
-      row_arr.push(<Square key={i+j} capture={board_array[i][j].captureClass} piececolor={board_array[i][j].color} state={board_array[i][j].piece} endSquare={()=>clickEnd(i,j)} movePiece={()=>ClickPiece(i,j)}/>);
+      row_arr.push(<Square key={i+j} css={board_array[i][j].cssClass} piececolor={board_array[i][j].color} state={board_array[i][j].piece} endSquare={()=>clickEnd(i,j)} movePiece={()=>ClickPiece(i,j)}/>);
     }
     board_rows.push(<div key={i} className={'board-row row-'+i}>{row_arr}</div>);
   }
@@ -297,7 +336,7 @@ function InitButton({resetBoard})
 }
 
 //chess board square
-function Square({index, capture, piececolor, state, movePiece, endSquare})
+function Square({index, css, piececolor, state, movePiece, endSquare})
 {
   let piece = "";
   if(state === null) //empty square
@@ -310,7 +349,7 @@ function Square({index, capture, piececolor, state, movePiece, endSquare})
   }
   else //piece
   {
-    piece = <Piece type={state} colorClass={piececolor+"-piece "+capture} key={index} startMove={movePiece}/>
+    piece = <Piece type={state} colorClass={piececolor+"-piece "+css} key={index} startMove={movePiece}/>
   }
   return <div onClick={endSquare} className={"square"}>{piece}</div>;
 }
