@@ -1,13 +1,12 @@
 /*
 TODO:
-- implement piece logic
-- implement castling
+- create page layout in App component
+- implement move history
+- implement king moves: moving into check (add board_array.check), castling
+- implement pawn moves: en passant, promotion
 - implement check
-- implement checkmate
-- implement stalemate
-- implement win/draw conditions
+- implement win/draw conditions: checkmate, stalemate, insufficient material, fifty-move rule, threefold repetition
 - add UI
-- refactor and combine code in getLegalMoves
 */
 
 import { useState, useEffect, useRef } from 'react';
@@ -58,8 +57,6 @@ function getLegalMoves(y_coord, x_coord, type, color, board_array, turn)
   let tempArr = [];
   if(type === "♟")
   {
-    //add en passant
-    //add promotion
     let forward = 1;
     if(color === "black")
     {
@@ -70,7 +67,7 @@ function getLegalMoves(y_coord, x_coord, type, color, board_array, turn)
     let coordY = y_coord+forward;
     if(!isOccupied(board_array[coordY][x_coord].piece))
     {
-      tempArr.push({coordX: x_coord, coordY: coordY, hidden: false});
+      tempArr.push({coordX: x_coord, coordY: coordY, capture: false});
 
       //two forward from starting row
       coordY = y_coord+forward*2;
@@ -78,7 +75,7 @@ function getLegalMoves(y_coord, x_coord, type, color, board_array, turn)
       {
         if(!isOccupied(board_array[coordY][x_coord].piece))
         {
-          tempArr.push({coordX: x_coord, coordY: coordY, hidden: false});
+          tempArr.push({coordX: x_coord, coordY: coordY, capture: false});
         }
       }
     }
@@ -92,7 +89,7 @@ function getLegalMoves(y_coord, x_coord, type, color, board_array, turn)
       {
         if(turn !== board_array[coordY][coordX].color && board_array[coordY][coordX].piece !== null) //opposite color piece for possible capture
         {
-          tempArr.push({coordX: coordX, coordY: coordY, hidden: true});
+          tempArr.push({coordX: coordX, coordY: coordY, capture: true});
         }
       }          
     }
@@ -101,99 +98,92 @@ function getLegalMoves(y_coord, x_coord, type, color, board_array, turn)
   {
     //movement array for up, down, right, left
     const mvt_arr = [{y: 1, x: 0}, {y: -1, x: 0}, {y: 0, x: 1}, {y: 0, x: -1}];
-
-    //loop through movement array
-    for(let i=0; i<mvt_arr.length; i++)
-    {
-      let mvt_horizontal = mvt_arr[i].y;
-      let mvt_vertical = mvt_arr[i].x;
-
-      let coordY = y_coord+mvt_horizontal;
-      let coordX = x_coord+mvt_vertical;
-
-      while(coordY <= 7 && coordY >= 0 && coordX <=7 && coordX >= 0) //within bounds
-      {
-        if(!isOccupied(board_array[coordY][coordX].piece)) //empty square
-        {
-          tempArr.push({coordX: coordX, coordY: coordY, hidden: false});
-        }
-        else
-        {
-          if(turn !== board_array[coordY][coordX].color) //capture if opposite color
-          {
-            tempArr.push({coordX: coordX, coordY: coordY, hidden: true});
-          }
-          break; //exit after piece blocks the way
-        }
-
-        //check next square in same direction
-        coordY = coordY+mvt_horizontal;
-        coordX = coordX+mvt_vertical;
-      }
-    }
+    moveUntilOccupied(mvt_arr, y_coord, x_coord, board_array, turn, tempArr);
   }
   else if(type === "♞")
   {
     //possible moves, starting 1 o clock and going clockwise
     const mvt_arr = [{y: 2, x: 1}, {y: 1, x: 2}, {y: -1, x: 2}, {y: -2, x: 1}, {y: -2, x: -1}, {y: -1, x: -2}, {y: 1, x: -2}, {y: 2, x: -1}];
-
-    for(let i=0; i<mvt_arr.length; i++)
-    {
-      let coordY = y_coord+mvt_arr[i].y;
-      let coordX = x_coord+mvt_arr[i].x;
-
-      if(coordY <= 7 && coordY >= 0 && coordX <=7 && coordX >= 0) //within bounds
-      {
-        if(!isOccupied(board_array[coordY][coordX].piece)) //empty square
-        {
-          tempArr.push({coordX: coordX, coordY: coordY, hidden: false});
-        }
-        else
-        {
-          if(turn !== board_array[coordY][coordX].color) //capture if opposite color
-          {
-            tempArr.push({coordX: coordX, coordY: coordY, hidden: true});
-          }
-        }
-      }
-    }
+    moveToSquares(mvt_arr, y_coord, x_coord, board_array, turn, tempArr);
   }
   else if(type === "♝")
   {
-    //movement array
+    //bishop movements clockwise
     const mvt_arr = [{y: 1, x: 1}, {y: -1, x: 1}, {y: -1, x: -1}, {y: 1, x: -1}];
+    moveUntilOccupied(mvt_arr, y_coord, x_coord, board_array, turn, tempArr);
+  }
+  else if(type === "♛")
+  {
+    //queen movements clockwise
+    const mvt_arr = [{y: 1, x: 0}, {y: 1, x: 1}, {y: 0, x: 1}, {y: -1, x: 1}, {y: -1, x: 0}, {y: -1, x: -1}, {y: 0, x: -1}, {y: 1, x: -1}];
+    moveUntilOccupied(mvt_arr, y_coord, x_coord, board_array, turn, tempArr);
+  }
+  else if(type === "♚")
+  {
+    //king movements clockwise
+    const mvt_arr = [{y: 1, x: 0}, {y: 1, x: 1}, {y: 0, x: 1}, {y: -1, x: 1}, {y: -1, x: 0}, {y: -1, x: -1}, {y: 0, x: -1}, {y: 1, x: -1}];
+    moveToSquares(mvt_arr, y_coord, x_coord, board_array, turn, tempArr);
+  }
+  return tempArr;
+}
 
-    //loop through movement array
-    for(let i=0; i<mvt_arr.length; i++)
+//movement logic for knight and king
+function moveToSquares(mvt_arr, y_coord, x_coord, board_array, turn, tempArr)
+{
+  for(let i=0; i<mvt_arr.length; i++)
+  {
+    let coordY = y_coord+mvt_arr[i].y;
+    let coordX = x_coord+mvt_arr[i].x;
+
+    if(coordY <= 7 && coordY >= 0 && coordX <=7 && coordX >= 0) //within bounds
     {
-      let mvt_horizontal = mvt_arr[i].y;
-      let mvt_vertical = mvt_arr[i].x;
-
-      let coordY = y_coord+mvt_horizontal;
-      let coordX = x_coord+mvt_vertical;
-
-      while(coordY <= 7 && coordY >= 0 && coordX <=7 && coordX >= 0) //within bounds
+      if(!isOccupied(board_array[coordY][coordX].piece)) //empty square
       {
-        if(!isOccupied(board_array[coordY][coordX].piece)) //empty square
+        tempArr.push({coordX: coordX, coordY: coordY, capture: false});
+      }
+      else
+      {
+        if(turn !== board_array[coordY][coordX].color) //capture if opposite color
         {
-          tempArr.push({coordX: coordX, coordY: coordY, hidden: false});
+          tempArr.push({coordX: coordX, coordY: coordY, capture: true});
         }
-        else
-        {
-          if(turn !== board_array[coordY][coordX].color) //capture if opposite color
-          {
-            tempArr.push({coordX: coordX, coordY: coordY, hidden: true});
-          }
-          break; //exit after piece blocks the way
-        }
-
-        //check next square in same direction
-        coordY = coordY+mvt_horizontal;
-        coordX = coordX+mvt_vertical;
       }
     }
   }
-  return tempArr;
+}
+
+//movement logic used by rook, bishop and queen
+function moveUntilOccupied(mvt_arr, y_coord, x_coord, board_array, turn, tempArr)
+{
+  //loop through movement array
+  for(let i=0; i<mvt_arr.length; i++)
+  {
+    let mvt_horizontal = mvt_arr[i].y;
+    let mvt_vertical = mvt_arr[i].x;
+
+    let coordY = y_coord+mvt_horizontal;
+    let coordX = x_coord+mvt_vertical;
+
+    while(coordY <= 7 && coordY >= 0 && coordX <=7 && coordX >= 0) //within bounds
+    {
+      if(!isOccupied(board_array[coordY][coordX].piece)) //empty square
+      {
+        tempArr.push({coordX: coordX, coordY: coordY, capture: false});
+      }
+      else
+      {
+        if(turn !== board_array[coordY][coordX].color) //capture if opposite color
+        {
+          tempArr.push({coordX: coordX, coordY: coordY, capture: true});
+        }
+        break; //exit after piece blocks the way
+      }
+
+      //check next square in same direction
+      coordY = coordY+mvt_horizontal;
+      coordX = coordX+mvt_vertical;
+    }
+  }
 }
 
 //sets highlights based on legal move array
@@ -217,7 +207,7 @@ function highLightMoves(board_array, setBoardArray, legalMoves, index_y, index_x
   //set highlights
   for(let i=0; i<legalMoves.current.length; i++)
   {
-    if(legalMoves.current[i].hidden === false) //show possible moves
+    if(legalMoves.current[i].capture === false) //show possible moves
     {
       copy[legalMoves.current[i].coordY][legalMoves.current[i].coordX] = {piece: "●", color: null, cssClass: ""};
     }
@@ -227,7 +217,11 @@ function highLightMoves(board_array, setBoardArray, legalMoves, index_y, index_x
     }
   }
 
-  copy[index_y][index_x].cssClass = "selected";
+  if(legalMoves.current.length > 0) //set piece as selected only if it has legal moves
+  {
+    copy[index_y][index_x].cssClass = "selected";
+  }
+  
 
   setBoardArray(copy);
 }
@@ -237,13 +231,14 @@ function ChessBoard()
 {
   const [board_array, setBoardArray] = useState(Array.from({ length: 8 }, () => Array.from({ length: 8 }, () => ({piece: null, color: null, cssClass: ""}))));
   const [playSound] = useSound(piece_audio); //piece moving sound effect
+  const [playTurn, setPlayTurn] = useState("white"); //white/black turn
+  const [history, setHistory] = useState([]); //move history, WIP
 
   let legalMoves = useRef([]);
   let selectedCoordY = useRef(null);
   let selectedCoordX = useRef(null);
   let selectedType = useRef(null);
   let selectedColor = useRef(null);
-  let turn_to_move = useRef("white");
 
   //initialize board pieces dynamically, empty depencies array causes it to run only once
   useEffect(() => {
@@ -254,7 +249,7 @@ function ChessBoard()
   //calculate and highlight legal moves
   function ClickPiece(index_y, index_x)
   {
-    if(turn_to_move.current === board_array[index_y][index_x].color)
+    if(playTurn === board_array[index_y][index_x].color)
     {
       selectedCoordY.current = index_y;
       selectedCoordX.current = index_x;
@@ -262,8 +257,8 @@ function ChessBoard()
       selectedColor.current = board_array[index_y][index_x].color;
 
       //calculate legal moves
-      legalMoves.current = []; //coordX, coordY, hidden
-      legalMoves.current = getLegalMoves(index_y, index_x, selectedType.current, selectedColor.current, board_array, turn_to_move.current);
+      legalMoves.current = []; //coordX, coordY, capture
+      legalMoves.current = getLegalMoves(index_y, index_x, selectedType.current, selectedColor.current, board_array, playTurn);
       
       //highlight legal moves
       highLightMoves(board_array, setBoardArray, legalMoves, index_y, index_x);
@@ -279,7 +274,8 @@ function ChessBoard()
       {
         copy[index_y][index_x] = {piece: selectedType.current, color: selectedColor.current, cssClass: ""}; //move piece
         copy[selectedCoordY.current][selectedCoordX.current] = {piece: null, color: null, cssClass: ""}; //clear original position
-        turn_to_move.current = (turn_to_move.current === "black") ? "white" : "black";
+        setHistory(history => [...history,{start_y: selectedCoordY.current, start_x: selectedCoordX.current, end_y: index_y, end_x: index_x, piece: selectedType.current, color: selectedColor.current}]);
+        setPlayTurn((playTurn === "black") ? "white" : "black");
         playSound();
       }
 
@@ -306,7 +302,7 @@ function ChessBoard()
     selectedCoordX.current = null;
     selectedType.current = null;
     selectedColor.current = null;
-    turn_to_move.current = "white";
+    setPlayTurn("white");
   }
 
   //generate dynamically
@@ -321,9 +317,11 @@ function ChessBoard()
     board_rows.push(<div key={i} className={'board-row row-'+i}>{row_arr}</div>);
   }
 
+  console.log(history);
+
   return(
   <>
-  <div className="temporary-turn-counter">{turn_to_move.current}</div>
+  <div className="temporary-turn-counter">{playTurn}</div>
   <div className='chess-board'>{board_rows}</div>
   <InitButton resetBoard={()=>resetBoard()}/>
   </>
