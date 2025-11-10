@@ -9,7 +9,6 @@ body
   margin-top: 200px;
   display: inline-flex;
   justify-content: center;
-  width: 560px;
   flex-wrap: wrap;
 }
 
@@ -19,6 +18,32 @@ body
   -webkit-user-select: none; /* Safari */
   -ms-user-select: none; /* IE 10 and IE 11 */
   user-select: none; /* Standard syntax */
+}
+
+.info-panel
+{
+  width: 200px;
+  background-color: #cfcfcf;
+  position: relative;
+  padding: 20px;
+}
+
+.move-history
+{
+  max-height: 400px;
+  overflow: auto;
+}
+
+.move-white
+{
+  color: white;
+}
+
+.reset-board
+{
+  position: absolute;
+  bottom: 20px;
+  right: 75px;
 }
 
 .board-row

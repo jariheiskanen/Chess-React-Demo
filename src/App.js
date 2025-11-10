@@ -1,8 +1,6 @@
 /*
 TODO:
-- create page layout in App component
-- implement move history
-- implement king moves: moving into check (add board_array.check), castling
+- implement king moves: castling
 - implement pawn moves: en passant, promotion
 - implement check
 - implement win/draw conditions: checkmate, stalemate, insufficient material, fifty-move rule, threefold repetition
@@ -51,8 +49,8 @@ function isOccupied(piece)
   }
 }
 
-//return array of legal moves for given piece
-function getLegalMoves(y_coord, x_coord, type, color, board_array, turn)
+//return array of legal moves for given piece, checkOpposite true when checking legal king moves from opposite color
+function getLegalMoves(y_coord, x_coord, type, color, board_array, checkOpposite)
 {
   let tempArr = [];
   if(type === "♟")
@@ -63,33 +61,43 @@ function getLegalMoves(y_coord, x_coord, type, color, board_array, turn)
       forward = -forward
     }
     
-    //one forward    
-    let coordY = y_coord+forward;
-    if(!isOccupied(board_array[coordY][x_coord].piece))
+    if(!checkOpposite) //ignore forward pawn moves when checking legal king moves
     {
-      tempArr.push({coordX: x_coord, coordY: coordY, capture: false});
-
-      //two forward from starting row
-      coordY = y_coord+forward*2;
-      if((y_coord < 2 && color === "white") || (y_coord > 5 && color === "black"))
+      //one forward    
+      let coordY = y_coord+forward;
+      if(!isOccupied(board_array[coordY][x_coord].piece))
       {
-        if(!isOccupied(board_array[coordY][x_coord].piece))
+        tempArr.push({coordX: x_coord, coordY: coordY, capture: false});
+
+        //two forward from starting row
+        coordY = y_coord+forward*2;
+        if((y_coord < 2 && color === "white") || (y_coord > 5 && color === "black"))
         {
-          tempArr.push({coordX: x_coord, coordY: coordY, capture: false});
+          if(!isOccupied(board_array[coordY][x_coord].piece))
+          {
+            tempArr.push({coordX: x_coord, coordY: coordY, capture: false});
+          }
         }
       }
     }
     //corner captures
-    coordY = y_coord+forward;
+    let coordY = y_coord+forward;
     const sides = [1, -1]; //left and right
     for(let i=0; i<sides.length; i++)
     {
       let coordX = x_coord+sides[i];
       if(coordX >=0 && coordX <=7)
       {
-        if(turn !== board_array[coordY][coordX].color && board_array[coordY][coordX].piece !== null) //opposite color piece for possible capture
+        if(checkOpposite) //corner captures always possible on king move check
         {
-          tempArr.push({coordX: coordX, coordY: coordY, capture: true});
+          tempArr.push({coordX: coordX, coordY: coordY, capture: true}); 
+        }
+        else
+        {
+          if(color !== board_array[coordY][coordX].color && board_array[coordY][coordX].piece !== null) //opposite color piece for possible capture
+          {
+            tempArr.push({coordX: coordX, coordY: coordY, capture: true});
+          }
         }
       }          
     }
@@ -98,38 +106,60 @@ function getLegalMoves(y_coord, x_coord, type, color, board_array, turn)
   {
     //movement array for up, down, right, left
     const mvt_arr = [{y: 1, x: 0}, {y: -1, x: 0}, {y: 0, x: 1}, {y: 0, x: -1}];
-    moveUntilOccupied(mvt_arr, y_coord, x_coord, board_array, turn, tempArr);
+    moveUntilOccupied(mvt_arr, y_coord, x_coord, board_array, color, tempArr);
   }
   else if(type === "♞")
   {
     //possible moves, starting 1 o clock and going clockwise
     const mvt_arr = [{y: 2, x: 1}, {y: 1, x: 2}, {y: -1, x: 2}, {y: -2, x: 1}, {y: -2, x: -1}, {y: -1, x: -2}, {y: 1, x: -2}, {y: 2, x: -1}];
-    moveToSquares(mvt_arr, y_coord, x_coord, board_array, turn, tempArr);
+    tempArr = tempArr.concat(moveToSquares(mvt_arr, y_coord, x_coord, board_array, color));
   }
   else if(type === "♝")
   {
     //bishop movements clockwise
     const mvt_arr = [{y: 1, x: 1}, {y: -1, x: 1}, {y: -1, x: -1}, {y: 1, x: -1}];
-    moveUntilOccupied(mvt_arr, y_coord, x_coord, board_array, turn, tempArr);
+    moveUntilOccupied(mvt_arr, y_coord, x_coord, board_array, color, tempArr);
   }
   else if(type === "♛")
   {
     //queen movements clockwise
     const mvt_arr = [{y: 1, x: 0}, {y: 1, x: 1}, {y: 0, x: 1}, {y: -1, x: 1}, {y: -1, x: 0}, {y: -1, x: -1}, {y: 0, x: -1}, {y: 1, x: -1}];
-    moveUntilOccupied(mvt_arr, y_coord, x_coord, board_array, turn, tempArr);
+    moveUntilOccupied(mvt_arr, y_coord, x_coord, board_array, color, tempArr);
   }
   else if(type === "♚")
   {
     //king movements clockwise
     const mvt_arr = [{y: 1, x: 0}, {y: 1, x: 1}, {y: 0, x: 1}, {y: -1, x: 1}, {y: -1, x: 0}, {y: -1, x: -1}, {y: 0, x: -1}, {y: 1, x: -1}];
-    moveToSquares(mvt_arr, y_coord, x_coord, board_array, turn, tempArr);
+    tempArr = tempArr.concat(moveToSquares(mvt_arr, y_coord, x_coord, board_array, color));
+
+    //prevent infinite loop when checking if king moves into check
+    //find and remove illegal moves that would place king in check
+    if(!checkOpposite) 
+    {
+      const oppositeColor = (color === "black") ? "white" : "black";
+      const illegalMoves = getAllMoves(oppositeColor, board_array);
+
+      for(let i=0; i<tempArr.length; i++)
+      {
+        for(let j=0; j<illegalMoves.length; j++)
+        {
+          if(tempArr[i].coordY === illegalMoves[j].coordY && tempArr[i].coordX === illegalMoves[j].coordX)
+          {
+            tempArr.splice(i, 1); //remove illegal move from legal moves
+            i--; //fix index
+            break;
+          }
+        }
+      }
+    }
   }
   return tempArr;
 }
 
 //movement logic for knight and king
-function moveToSquares(mvt_arr, y_coord, x_coord, board_array, turn, tempArr)
+function moveToSquares(mvt_arr, y_coord, x_coord, board_array, turn)
 {
+  let tempArr = [];
   for(let i=0; i<mvt_arr.length; i++)
   {
     let coordY = y_coord+mvt_arr[i].y;
@@ -150,6 +180,7 @@ function moveToSquares(mvt_arr, y_coord, x_coord, board_array, turn, tempArr)
       }
     }
   }
+  return tempArr;
 }
 
 //movement logic used by rook, bishop and queen
@@ -221,9 +252,33 @@ function highLightMoves(board_array, setBoardArray, legalMoves, index_y, index_x
   {
     copy[index_y][index_x].cssClass = "selected";
   }
-  
 
   setBoardArray(copy);
+}
+
+//returns chess square such as A4 from given coordinates
+function coordToSquare(coordY, coordX)
+{
+  const files = ["A","B","C","D","E","F","G","H"];
+  return files[coordX]+(coordY+1);
+}
+
+//return all possible moves for given color
+function getAllMoves(color, board_array)
+{
+  let tempArr = [];
+  //loop through board
+  for(let i=0; i<8; i++)
+  {
+    for(let j=0; j<8; j++)
+    {
+      if(board_array[i][j].color === color) //piece found
+      {
+        tempArr = tempArr.concat(getLegalMoves(i, j, board_array[i][j].piece, board_array[i][j].color, board_array, true));
+      }
+    }
+  }
+  return tempArr;
 }
 
 //chess board
@@ -238,7 +293,6 @@ function ChessBoard()
   let selectedCoordY = useRef(null);
   let selectedCoordX = useRef(null);
   let selectedType = useRef(null);
-  let selectedColor = useRef(null);
 
   //initialize board pieces dynamically, empty depencies array causes it to run only once
   useEffect(() => {
@@ -254,11 +308,10 @@ function ChessBoard()
       selectedCoordY.current = index_y;
       selectedCoordX.current = index_x;
       selectedType.current = board_array[index_y][index_x].piece;
-      selectedColor.current = board_array[index_y][index_x].color;
 
       //calculate legal moves
       legalMoves.current = []; //coordX, coordY, capture
-      legalMoves.current = getLegalMoves(index_y, index_x, selectedType.current, selectedColor.current, board_array, playTurn);
+      legalMoves.current = getLegalMoves(index_y, index_x, selectedType.current, playTurn, board_array, false);
       
       //highlight legal moves
       highLightMoves(board_array, setBoardArray, legalMoves, index_y, index_x);
@@ -272,9 +325,9 @@ function ChessBoard()
       const copy = board_array.map(row => row.map(cell => ({ ...cell })));
       if(legalMoves.current.some(e => e.coordY === index_y && e.coordX === index_x)) //perform legal move
       {
-        copy[index_y][index_x] = {piece: selectedType.current, color: selectedColor.current, cssClass: ""}; //move piece
+        copy[index_y][index_x] = {piece: selectedType.current, color: playTurn, cssClass: ""}; //move piece
         copy[selectedCoordY.current][selectedCoordX.current] = {piece: null, color: null, cssClass: ""}; //clear original position
-        setHistory(history => [...history,{start_y: selectedCoordY.current, start_x: selectedCoordX.current, end_y: index_y, end_x: index_x, piece: selectedType.current, color: selectedColor.current}]);
+        setHistory(history => [...history,{start_y: selectedCoordY.current, start_x: selectedCoordX.current, end_y: index_y, end_x: index_x, piece: selectedType.current, color: playTurn, move: coordToSquare(index_y, index_x)}]);
         setPlayTurn((playTurn === "black") ? "white" : "black");
         playSound();
       }
@@ -301,11 +354,10 @@ function ChessBoard()
     selectedCoordY.current = null;
     selectedCoordX.current = null;
     selectedType.current = null;
-    selectedColor.current = null;
     setPlayTurn("white");
   }
 
-  //generate dynamically
+  //generate board dynamically
   let board_rows = [];
   for(let i=7; i>=0; i--)
   {
@@ -317,20 +369,28 @@ function ChessBoard()
     board_rows.push(<div key={i} className={'board-row row-'+i}>{row_arr}</div>);
   }
 
-  console.log(history);
+  //generate move history
+  let moveHistory = [];
+  for(let i=0; i<history.length; i++)
+  {
+    moveHistory.push(<div className={"move-"+history[i].color} key={i} >{(i+1)+". "+history[i].piece+history[i].move}</div>);
+  }
 
   return(
   <>
-  <div className="temporary-turn-counter">{playTurn}</div>
   <div className='chess-board'>{board_rows}</div>
-  <InitButton resetBoard={()=>resetBoard()}/>
+  <div className='info-panel'>
+    <div className="turn-counter">{playTurn+" to move"}</div>
+    <div className="move-history">{moveHistory}</div>    
+    <InitButton resetBoard={()=>resetBoard()}/>
+  </div>
   </>
   );
 }
 
 function InitButton({resetBoard})
 {
-  return <button onClick={resetBoard}>Reset Board</button>;
+  return <button className='reset-board' onClick={resetBoard}>Reset Board</button>;
 }
 
 //chess board square
