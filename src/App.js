@@ -1,10 +1,11 @@
 /*
 TODO:
-- BUG: sometimes after a move, piece duplicates itself when trying to select opposite piece, find out why
-- implement pawn moves: en passant, promotion
+- clickPiece and clickEnd happen simultaneously, fix logic
+- add option to promote pawn to other pieces than queen
 - implement check
 - implement win/draw conditions: checkmate, stalemate, insufficient material, fifty-move rule, threefold repetition
-- add UI
+- improve UI
+- add coordinate labels, coordinate disappears on piece move
 */
 
 import { useState, useEffect, useRef } from 'react';
@@ -20,11 +21,12 @@ export default function App() {
 
 //object for chess piece on board
 class PieceObject {
-  constructor(piece, color = null, className = "", hasMoved = false) {
+  constructor(piece, color = null, className = "", hasMoved = false, coordinate = null) {
     this.piece = piece;
     this.color = color;
     this.cssClass = className;
     this.hasMoved = hasMoved;
+    this.coordinate = coordinate;
   }
 }
 
@@ -41,12 +43,13 @@ class MoveObject {
 //initializes chess board with default pieces
 function initBoard(setBoardArray)
 {
+  const coord = ["A","B","C","D","E","F","G","H"];
   const pieces = ["♜","♞","♝","♛","♚","♝","♞","♜"];
   const copy = Array.from({ length: 8 }, () => Array.from({ length: 8 }, () => (new PieceObject(null))));
 
   for(let i=0; i<pieces.length; i++)
   {
-    copy[0][i] = new PieceObject(pieces[i], "white");
+    copy[0][i] = new PieceObject(pieces[i], "white", null, false, coord[i]);
     copy[7][i] = new PieceObject(pieces[i], "black");
   }
   
@@ -70,7 +73,7 @@ function isOccupied(piece)
 }
 
 //return array of legal moves for given piece, checkOpposite true when checking legal king moves from opposite color
-function getLegalMoves(y_coord, x_coord, type, color, board_array, checkOpposite)
+function getLegalMoves(y_coord, x_coord, type, color, board_array, checkOpposite, history = [])
 {
   let tempArr = [];
   if(type === "♟")
@@ -80,6 +83,11 @@ function getLegalMoves(y_coord, x_coord, type, color, board_array, checkOpposite
     {
       forward = -forward
     }
+    let promote = null;
+    if((color === "white" && y_coord === 6) || (color === "black" && y_coord === 1))
+    {
+      promote = "promotion";
+    }
     
     if(!checkOpposite) //ignore forward pawn moves when checking legal king moves
     {
@@ -87,13 +95,10 @@ function getLegalMoves(y_coord, x_coord, type, color, board_array, checkOpposite
       let coordY = y_coord+forward;
       if(!isOccupied(board_array[coordY][x_coord].piece))
       {
-        tempArr.push(new MoveObject(x_coord, coordY));
+        tempArr.push(new MoveObject(x_coord, coordY, null, promote));
         
-        
-        
-        //if((y_coord < 2 && color === "white") || (y_coord > 5 && color === "black"))
         //two forward from starting row
-        if(board_array[coordY][x_coord].hasMoved === false)
+        if(board_array[y_coord][x_coord].hasMoved === false)
         {
           coordY = y_coord+forward*2;
           if(!isOccupied(board_array[coordY][x_coord].piece))
@@ -101,6 +106,26 @@ function getLegalMoves(y_coord, x_coord, type, color, board_array, checkOpposite
             tempArr.push(new MoveObject(x_coord, coordY));
           }
         }
+      }
+      //en passant
+      if((color === "white" && y_coord === 4) || (color === "black" && y_coord === 3))
+      {
+        let coordY = y_coord+forward;
+        let checkStartY = y_coord+forward*2 //starting position for opponent pawn
+
+        let pieceLast = history[history.length-1].piece;
+        let yStartLast  = history[history.length-1].start_y;
+        let yEndLast  = history[history.length-1].end_y;
+        let xEndLast  = history[history.length-1].end_x;
+
+        //if pawn moved next to this pawn from starting position
+        if(pieceLast === "♟" && yEndLast === y_coord  && yStartLast === checkStartY)
+        {
+          if(xEndLast === x_coord+1 || xEndLast === x_coord-1)
+          {
+            tempArr.push(new MoveObject(xEndLast, coordY, null, "en_passant"));
+          }
+        }        
       }
     }
     //corner captures
@@ -113,13 +138,13 @@ function getLegalMoves(y_coord, x_coord, type, color, board_array, checkOpposite
       {
         if(checkOpposite) //corner captures always possible on king move check
         {
-          tempArr.push(new MoveObject(coordX, coordY, true)); 
+          tempArr.push(new MoveObject(coordX, coordY, true, promote)); 
         }
         else
         {
           if(color !== board_array[coordY][coordX].color && board_array[coordY][coordX].piece !== null) //opposite color piece for possible capture
           {
-            tempArr.push(new MoveObject(coordX, coordY, true));
+            tempArr.push(new MoveObject(coordX, coordY, true, promote));
           }
         }
       }          
@@ -368,7 +393,7 @@ function ChessBoard()
 
       //calculate legal moves
       legalMoves.current = []; //coordX, coordY, capture
-      legalMoves.current = getLegalMoves(index_y, index_x, piece, playTurn, board_array, false);
+      legalMoves.current = getLegalMoves(index_y, index_x, piece, playTurn, board_array, false, history);
       
       //highlight legal moves
       highLightMoves(board_array, setBoardArray, legalMoves, index_y, index_x);
@@ -388,23 +413,30 @@ function ChessBoard()
       const moveIndex = legalMoves.current.findIndex(e => e.coordY === endY && e.coordX === endX);
       if(moveIndex !== -1) //legal move
       {
+        copy[endY][endX] = new PieceObject(piece, playTurn, null, true);//move piece
+        copy[startY][startX] = new PieceObject(null); //clear original position
+        
         //special move cases
         switch(legalMoves.current[moveIndex].special) 
         {
           case "castle_king":
             copy[endY][5] = new PieceObject("♜", playTurn, null, true);//move rook to other side of king
-            copy[endY][7] = new PieceObject(null); //clear original position
+            copy[endY][7] = new PieceObject(null); //clear rook original position
             break;
           case "castle_queen":
             copy[endY][3] = new PieceObject("♜", playTurn, null, true);//move rook to other side of king
-            copy[endY][0] = new PieceObject(null); //clear original position
+            copy[endY][0] = new PieceObject(null); //clear rook original position
+            break;
+          case "en_passant":
+            copy[startY][endX] = new PieceObject(null); //clear pawn being captured
+            break;
+          case "promotion":
+            copy[endY][endX] = new PieceObject("♛", playTurn, null, true);//turn pawn into queen
             break;
           default:
             break;
         }
 
-        copy[endY][endX] = new PieceObject(piece, playTurn, null, true);//move piece
-        copy[startY][startX] = new PieceObject(null); //clear original position
         setHistory(history => [...history,{start_y: startY, start_x: startX, end_y: endY, end_x: endX, piece: piece, color: playTurn, move: coordToSquare(endY, endX)}]);
         setPlayTurn((playTurn === "black") ? "white" : "black");
         playSound();
@@ -423,6 +455,7 @@ function ChessBoard()
           copy[coordY][coordX] = new PieceObject(null);
         }
       }
+      legalMoves.current = [];
       setBoardArray(copy);
     }
   }
@@ -444,7 +477,7 @@ function ChessBoard()
     let row_arr = [];
     for(let x=0; x<8; x++)
     {
-      row_arr.push(<Square key={y+x} css={board_array[y][x].cssClass} piececolor={board_array[y][x].color} state={board_array[y][x].piece} endSquare={()=>clickEnd(y,x)} movePiece={()=>ClickPiece(y,x)}/>);
+      row_arr.push(<Square key={y+x} coord={board_array[y][x].coordinate} css={board_array[y][x].cssClass} piececolor={board_array[y][x].color} state={board_array[y][x].piece} endSquare={()=>clickEnd(y,x)} movePiece={()=>ClickPiece(y,x)}/>);
     }
     board_rows.push(<div key={y} className={'board-row row-'+y}>{row_arr}</div>);
   }
@@ -474,12 +507,12 @@ function InitButton({resetBoard})
 }
 
 //chess board square
-function Square({index, css, piececolor, state, movePiece, endSquare})
+function Square({index, coord, css, piececolor, state, movePiece, endSquare})
 {
-  let piece = "";
+  let piece = null;
   if(state === null) //empty square
   {
-    piece = "";
+    piece = null;
   }
   else if(state === "●") //highlight
   {
@@ -489,11 +522,21 @@ function Square({index, css, piececolor, state, movePiece, endSquare})
   {
     piece = <Piece type={state} colorClass={piececolor+"-piece "+css} key={index} startMove={movePiece}/>
   }
-  return <div onClick={endSquare} className={"square"}>{piece}</div>;
+  return (
+    <div onClick={endSquare} className={"square"}>
+      <Coordinate alphabet={coord}/>
+      {piece}
+    </div>
+  );
 }
 
 //chess piece
 function Piece({type, colorClass, startMove})
 {
   return <span className={"piece "+colorClass} onClick={startMove}>{type}</span>;
+}
+
+function Coordinate({alphabet})
+{
+  return <span className="coordinate">{alphabet}</span>;
 }

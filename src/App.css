@@ -69,6 +69,17 @@ body
   text-align: center;
   line-height: 70px;
   font-size: 50px;
+  position: relative;
+}
+
+.coordinate
+{
+  position: absolute;
+  font-size: 12px;
+  line-height: normal;
+  bottom: 0px;
+  left: 5px;
+  z-index: 5;
 }
 
 .white-piece
@@ -92,6 +103,8 @@ body
 {
   width: 70px;
   display: block;
+  z-index: 10;
+  position: relative;
 }
 
 .capture
