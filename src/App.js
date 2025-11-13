@@ -5,7 +5,6 @@ TODO:
 - implement check
 - implement win/draw conditions: checkmate, stalemate, insufficient material, fifty-move rule, threefold repetition
 - improve UI
-- add coordinate labels, coordinate disappears on piece move
 */
 
 import { useState, useEffect, useRef } from 'react';
@@ -21,12 +20,11 @@ export default function App() {
 
 //object for chess piece on board
 class PieceObject {
-  constructor(piece, color = null, className = "", hasMoved = false, coordinate = null) {
+  constructor(piece, color = null, className = "", hasMoved = false) {
     this.piece = piece;
     this.color = color;
     this.cssClass = className;
     this.hasMoved = hasMoved;
-    this.coordinate = coordinate;
   }
 }
 
@@ -43,13 +41,12 @@ class MoveObject {
 //initializes chess board with default pieces
 function initBoard(setBoardArray)
 {
-  const coord = ["A","B","C","D","E","F","G","H"];
   const pieces = ["♜","♞","♝","♛","♚","♝","♞","♜"];
   const copy = Array.from({ length: 8 }, () => Array.from({ length: 8 }, () => (new PieceObject(null))));
 
   for(let i=0; i<pieces.length; i++)
   {
-    copy[0][i] = new PieceObject(pieces[i], "white", null, false, coord[i]);
+    copy[0][i] = new PieceObject(pieces[i], "white");
     copy[7][i] = new PieceObject(pieces[i], "black");
   }
   
@@ -475,9 +472,21 @@ function ChessBoard()
   for(let y=7; y>=0; y--)
   {
     let row_arr = [];
+    let coord = ["A","B","C","D","E","F","G","H"];
     for(let x=0; x<8; x++)
     {
-      row_arr.push(<Square key={y+x} coord={board_array[y][x].coordinate} css={board_array[y][x].cssClass} piececolor={board_array[y][x].color} state={board_array[y][x].piece} endSquare={()=>clickEnd(y,x)} movePiece={()=>ClickPiece(y,x)}/>);
+      let alphabet = null;
+      if(y === 0)
+      {
+        alphabet = coord[x];
+      }
+      let number = null;
+      if(x === 7)
+      {
+        number = y+1;
+      }
+
+      row_arr.push(<Square key={y+x} x_coord={alphabet} y_coord={number} css={board_array[y][x].cssClass} piececolor={board_array[y][x].color} state={board_array[y][x].piece} endSquare={()=>clickEnd(y,x)} movePiece={()=>ClickPiece(y,x)}/>);
     }
     board_rows.push(<div key={y} className={'board-row row-'+y}>{row_arr}</div>);
   }
@@ -507,7 +516,7 @@ function InitButton({resetBoard})
 }
 
 //chess board square
-function Square({index, coord, css, piececolor, state, movePiece, endSquare})
+function Square({index, x_coord, y_coord, css, piececolor, state, movePiece, endSquare})
 {
   let piece = null;
   if(state === null) //empty square
@@ -522,9 +531,11 @@ function Square({index, coord, css, piececolor, state, movePiece, endSquare})
   {
     piece = <Piece type={state} colorClass={piececolor+"-piece "+css} key={index} startMove={movePiece}/>
   }
+  //return coordinates and piece, coordinates are for x and y axis
   return (
     <div onClick={endSquare} className={"square"}>
-      <Coordinate alphabet={coord}/>
+      <Coordinate alphabet={x_coord} number={null}/>
+      <Coordinate alphabet={null} number={y_coord}/>
       {piece}
     </div>
   );
@@ -536,7 +547,16 @@ function Piece({type, colorClass, startMove})
   return <span className={"piece "+colorClass} onClick={startMove}>{type}</span>;
 }
 
-function Coordinate({alphabet})
+function Coordinate({alphabet, number})
 {
-  return <span className="coordinate">{alphabet}</span>;
+  let coordinate = null;
+  if(alphabet !== null)
+  {
+    coordinate = <span className="coordinate">{alphabet}</span>;
+  }
+  if(number !== null)
+  {
+    coordinate = <span className="coordinate y-axis">{number}</span>;
+  }
+  return coordinate;
 }

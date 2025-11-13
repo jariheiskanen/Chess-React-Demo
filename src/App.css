@@ -10,6 +10,7 @@ body
   display: inline-flex;
   justify-content: center;
   flex-wrap: wrap;
+  font-family: "Roboto",Verdana, Geneva, Tahoma, sans-serif;
 }
 
 .chess-board
@@ -55,11 +56,13 @@ body
 .board-row:nth-child(even) .square:nth-child(odd), .board-row:nth-child(odd) .square:nth-child(even)
 {
   background-color: #9dd09d;
+  color: beige;
 }
 
 .board-row:nth-child(odd) .square:nth-child(odd), .board-row:nth-child(even) .square:nth-child(even)
 {
   background-color: beige;
+  color: #9dd09d;
 }
 
 .square
@@ -75,11 +78,20 @@ body
 .coordinate
 {
   position: absolute;
-  font-size: 12px;
+  font-size: 10px;
   line-height: normal;
-  bottom: 0px;
-  left: 5px;
+  bottom: 3px;
+  left: 3px;
   z-index: 5;
+  font-weight: bold;
+}
+
+.coordinate.y-axis
+{
+  top: 3px;
+  bottom: auto;
+  right: 3px;
+  left: auto;
 }
 
 .white-piece
