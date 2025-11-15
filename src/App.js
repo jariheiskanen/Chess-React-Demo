@@ -1,8 +1,12 @@
 /*
 TODO:
-- clickPiece and clickEnd happen simultaneously, fix logic
 - add option to promote pawn to other pieces than queen
 - implement check
+  > block bishop, rook, queen line of capture
+  > move king
+  > capture piece
+- implement blocked piece moves if it would result with king in check
+  > only pieces which can pin possible - bishop, rook, queen
 - implement win/draw conditions: checkmate, stalemate, insufficient material, fifty-move rule, threefold repetition
 - improve UI
 */
@@ -56,106 +60,23 @@ function initBoard(setBoardArray)
   setBoardArray(copy);
 }
 
-//checks if square is occupied
-function isOccupied(piece)
-{
-  if(piece === null || piece === "●") //not occupied
-  {
-    return false;
-  }
-  else
-  {
-    return true;
-  }
-}
-
 //return array of legal moves for given piece, checkOpposite true when checking legal king moves from opposite color
 function getLegalMoves(y_coord, x_coord, type, color, board_array, checkOpposite, history = [])
 {
   let tempArr = [];
   if(type === "♟")
   {
-    let forward = 1;
-    if(color === "black")
-    {
-      forward = -forward
-    }
-    let promote = null;
-    if((color === "white" && y_coord === 6) || (color === "black" && y_coord === 1))
-    {
-      promote = "promotion";
-    }
-    
-    if(!checkOpposite) //ignore forward pawn moves when checking legal king moves
-    {
-      //one forward    
-      let coordY = y_coord+forward;
-      if(!isOccupied(board_array[coordY][x_coord].piece))
-      {
-        tempArr.push(new MoveObject(x_coord, coordY, null, promote));
-        
-        //two forward from starting row
-        if(board_array[y_coord][x_coord].hasMoved === false)
-        {
-          coordY = y_coord+forward*2;
-          if(!isOccupied(board_array[coordY][x_coord].piece))
-          {
-            tempArr.push(new MoveObject(x_coord, coordY));
-          }
-        }
-      }
-      //en passant
-      if((color === "white" && y_coord === 4) || (color === "black" && y_coord === 3))
-      {
-        let coordY = y_coord+forward;
-        let checkStartY = y_coord+forward*2 //starting position for opponent pawn
-
-        let pieceLast = history[history.length-1].piece;
-        let yStartLast  = history[history.length-1].start_y;
-        let yEndLast  = history[history.length-1].end_y;
-        let xEndLast  = history[history.length-1].end_x;
-
-        //if pawn moved next to this pawn from starting position
-        if(pieceLast === "♟" && yEndLast === y_coord  && yStartLast === checkStartY)
-        {
-          if(xEndLast === x_coord+1 || xEndLast === x_coord-1)
-          {
-            tempArr.push(new MoveObject(xEndLast, coordY, null, "en_passant"));
-          }
-        }        
-      }
-    }
-    //corner captures
-    let coordY = y_coord+forward;
-    const sides = [1, -1]; //left and right
-    for(let i=0; i<sides.length; i++)
-    {
-      let coordX = x_coord+sides[i];
-      if(coordX >=0 && coordX <=7)
-      {
-        if(checkOpposite) //corner captures always possible on king move check
-        {
-          tempArr.push(new MoveObject(coordX, coordY, true, promote)); 
-        }
-        else
-        {
-          if(color !== board_array[coordY][coordX].color && board_array[coordY][coordX].piece !== null) //opposite color piece for possible capture
-          {
-            tempArr.push(new MoveObject(coordX, coordY, true, promote));
-          }
-        }
-      }          
-    }
+    pawnLogic(y_coord, x_coord, board_array, color, tempArr, checkOpposite, history);
   }
   else if(type === "♜")
   {
-    //movement array for up, down, right, left
+    //rook movements clockwise
     const mvt_arr = [{y: 1, x: 0}, {y: -1, x: 0}, {y: 0, x: 1}, {y: 0, x: -1}];
     moveUntilOccupied(mvt_arr, y_coord, x_coord, board_array, color, tempArr);
   }
   else if(type === "♞")
   {
-    //possible moves, starting 1 o clock and going clockwise
+    //knight moves clockwise
     const mvt_arr = [{y: 2, x: 1}, {y: 1, x: 2}, {y: -1, x: 2}, {y: -2, x: 1}, {y: -2, x: -1}, {y: -1, x: -2}, {y: 1, x: -2}, {y: 2, x: -1}];
     tempArr = tempArr.concat(moveToSquares(mvt_arr, y_coord, x_coord, board_array, color));
   }
@@ -176,47 +97,135 @@ function getLegalMoves(y_coord, x_coord, type, color, board_array, checkOpposite
     //king movements clockwise
     const mvt_arr = [{y: 1, x: 0}, {y: 1, x: 1}, {y: 0, x: 1}, {y: -1, x: 1}, {y: -1, x: 0}, {y: -1, x: -1}, {y: 0, x: -1}, {y: 1, x: -1}];
     tempArr = tempArr.concat(moveToSquares(mvt_arr, y_coord, x_coord, board_array, color));
+    kingLogic(y_coord, x_coord, board_array, tempArr, color, checkOpposite);
+  }
+  return tempArr;
+}
 
-    //castling
-    if(board_array[y_coord][x_coord].hasMoved === false)
+//movement logic for king
+function kingLogic(y_coord, x_coord, board_array, tempArr, color, checkOpposite)
+{
+  //castling
+  if(board_array[y_coord][x_coord].hasMoved === false)
+  {
+    if(!isOccupied(board_array[y_coord][x_coord+1].piece) && !isOccupied(board_array[y_coord][x_coord+2].piece)) //squares between king and rook empty, king side castle
     {
-      if(!isOccupied(board_array[y_coord][x_coord+1].piece) && !isOccupied(board_array[y_coord][x_coord+2].piece)) //squares between king and rook empty, king side castle
+      if(board_array[y_coord][x_coord+3].hasMoved === false) //rook hasn't moved
       {
-        if(board_array[y_coord][x_coord+3].hasMoved === false) //rook hasn't moved
-        {
-          tempArr.push(new MoveObject(x_coord+2, y_coord, null, "castle_king"));
-        }
-      }
-      if(!isOccupied(board_array[y_coord][x_coord-1].piece) && !isOccupied(board_array[y_coord][x_coord-2].piece) && !isOccupied(board_array[y_coord][x_coord-2].piece)) //squares between king and rook empty, queen side castle
-      {
-        if(board_array[y_coord][x_coord-4].hasMoved === false) //rook hasn't moved
-        {
-          tempArr.push(new MoveObject(x_coord-2, y_coord, null, "castle_queen"));
-        }
+        tempArr.push(new MoveObject(x_coord+2, y_coord, null, "castle_king"));
       }
     }
-
-    //find and remove illegal moves that would place king in check
-    if(!checkOpposite) 
+    if(!isOccupied(board_array[y_coord][x_coord-1].piece) && !isOccupied(board_array[y_coord][x_coord-2].piece) && !isOccupied(board_array[y_coord][x_coord-2].piece)) //squares between king and rook empty, queen side castle
     {
-      const oppositeColor = (color === "black") ? "white" : "black";
-      const illegalMoves = getAllMoves(oppositeColor, board_array);
-
-      for(let i=0; i<tempArr.length; i++)
+      if(board_array[y_coord][x_coord-4].hasMoved === false) //rook hasn't moved
       {
-        for(let j=0; j<illegalMoves.length; j++)
+        tempArr.push(new MoveObject(x_coord-2, y_coord, null, "castle_queen"));
+      }
+    }
+  }
+
+  //find and remove illegal moves that would place king in check
+  if(!checkOpposite) 
+  {
+    const oppositeColor = (color === "black") ? "white" : "black";
+    const illegalMoves = getAllMoves(oppositeColor, board_array);
+
+    for(let i=0; i<tempArr.length; i++)
+    {
+      for(let j=0; j<illegalMoves.length; j++)
+      {
+        if(tempArr[i].coordY === illegalMoves[j].coordY && tempArr[i].coordX === illegalMoves[j].coordX)
         {
-          if(tempArr[i].coordY === illegalMoves[j].coordY && tempArr[i].coordX === illegalMoves[j].coordX)
-          {
-            tempArr.splice(i, 1); //remove illegal move from legal moves
-            i--; //fix index
-            break;
-          }
+          tempArr.splice(i, 1); //remove illegal move from legal moves
+          i--; //fix index
+          break;
         }
       }
     }
   }
-  return tempArr;
+}
+
+//movement logic for pawn
+function pawnLogic(y_coord, x_coord, board_array, color, tempArr, checkOpposite, history)
+{
+  let forward = 1;
+  if(color === "black")
+  {
+    forward = -forward
+  }
+  let promote = null;
+  if((color === "white" && y_coord === 6) || (color === "black" && y_coord === 1))
+  {
+    promote = "promotion";
+  }
+  
+  if(!checkOpposite) //ignore forward pawn moves when checking legal king moves
+  {
+    //one forward    
+    let coordY = y_coord+forward;
+    if(!isOccupied(board_array[coordY][x_coord].piece))
+    {
+      tempArr.push(new MoveObject(x_coord, coordY, null, promote));
+      
+      //two forward from starting row
+      if(board_array[y_coord][x_coord].hasMoved === false)
+      {
+        coordY = y_coord+forward*2;
+        if(!isOccupied(board_array[coordY][x_coord].piece))
+        {
+          tempArr.push(new MoveObject(x_coord, coordY));
+        }
+      }
+    }
+    //en passant
+    if((color === "white" && y_coord === 4) || (color === "black" && y_coord === 3))
+    {
+      let coordY = y_coord+forward;
+      let checkStartY = y_coord+forward*2 //starting position for opponent pawn
+
+      let pieceLast = history[history.length-1].piece;
+      let yStartLast  = history[history.length-1].start_y;
+      let yEndLast  = history[history.length-1].end_y;
+      let xEndLast  = history[history.length-1].end_x;
+
+      //if pawn moved next to this pawn from starting position
+      if(pieceLast === "♟" && yEndLast === y_coord  && yStartLast === checkStartY)
+      {
+        if(xEndLast === x_coord+1 || xEndLast === x_coord-1)
+        {
+          tempArr.push(new MoveObject(xEndLast, coordY, null, "en_passant"));
+        }
+      }        
+    }
+  }
+  //corner captures
+  let coordY = y_coord+forward;
+  const sides = [1, -1]; //left and right
+  for(let i=0; i<sides.length; i++)
+  {
+    let coordX = x_coord+sides[i];
+    if(isInBounds(coordX, coordY))
+    {
+      let target_piece = board_array[coordY][coordX].piece;
+      let target_color = board_array[coordY][coordX].color;
+
+      if(checkOpposite) //corner captures always possible on king move check
+      {
+        tempArr.push(new MoveObject(coordX, coordY, true, promote)); 
+      }
+      else
+      {
+        if(color !== target_color && target_piece !== null) //opposite color piece for possible capture
+        {
+          tempArr.push(new MoveObject(coordX, coordY, true, promote));
+        }
+        if(target_piece === "♚" && color !== target_color)
+        {
+          console.log("king in check");
+        }
+      }
+    }
+  }
 }
 
 //movement logic for knight and king
@@ -228,21 +237,29 @@ function moveToSquares(mvt_arr, y_coord, x_coord, board_array, turn)
     let coordY = y_coord+mvt_arr[i].y;
     let coordX = x_coord+mvt_arr[i].x;
 
-    if(coordY <= 7 && coordY >= 0 && coordX <=7 && coordX >= 0) //within bounds
+    if(isInBounds(coordX, coordY)) //within bounds
     {
-      if(!isOccupied(board_array[coordY][coordX].piece)) //empty square
+      let target_piece = board_array[coordY][coordX].piece;
+      let target_color = board_array[coordY][coordX].color;
+
+      if(!isOccupied(target_piece)) //empty square
       {
         tempArr.push(new MoveObject(coordX, coordY));
       }
       else
       {
-        if(turn !== board_array[coordY][coordX].color) //capture if opposite color
+        if(turn !== target_color) //capture if opposite color
         {
           tempArr.push(new MoveObject(coordX, coordY, true));
         }
         else
         {
           tempArr.push(new MoveObject(coordX, coordY, false)); //own piece, save for king move check
+        }
+
+        if(target_piece === "♚" && turn !== target_color)
+        {
+          console.log("king in check");
         }
       }
     }
@@ -262,23 +279,49 @@ function moveUntilOccupied(mvt_arr, y_coord, x_coord, board_array, turn, tempArr
     let coordY = y_coord+mvt_horizontal;
     let coordX = x_coord+mvt_vertical;
 
-    while(coordY <= 7 && coordY >= 0 && coordX <=7 && coordX >= 0) //within bounds
+    let blocked_piece_count = 0; //check how many opponent pieces are blocking way to the king
+    let blocking_piece = null;
+
+    while(isInBounds(coordX, coordY)) //within bounds
     {
-      if(!isOccupied(board_array[coordY][coordX].piece)) //empty square
+      let target_piece = board_array[coordY][coordX].piece;
+      let target_color = board_array[coordY][coordX].color;
+
+      if(!isOccupied(target_piece)) //empty square
       {
-        tempArr.push(new MoveObject(coordX, coordY));
-      }
-      else
-      {
-        if(turn !== board_array[coordY][coordX].color) //capture if opposite color
+        if(blocked_piece_count < 1) //piece is blocking the way, don't add new moves
         {
-          tempArr.push(new MoveObject(coordX, coordY, true));
+          tempArr.push(new MoveObject(coordX, coordY));
+        }        
+      }
+      else //piece blocking the way
+      {
+        if(turn !== target_color) //opposite color, capture
+        {
+          if(blocked_piece_count < 1) //piece is blocking the way, don't add new moves
+          {
+            tempArr.push(new MoveObject(coordX, coordY, true));
+            blocking_piece = coordToSquare(coordY, coordX);
+          }          
+          blocked_piece_count++;
         }
         else
         {
           tempArr.push(new MoveObject(coordX, coordY, false)); //own piece, save for king move check
+          break; //exit if own piece blocks the way
         }
-        break; //exit after piece blocks the way
+        //opponent piece is blocking the way, check if opponent king is behind it, if multiple ignore
+        //king is counted for blocked_piece_count
+        if(blocked_piece_count === 2 && target_piece === "♚" && turn !== target_color)
+        {
+          console.log("pinned piece: "+blocking_piece);
+          break;
+        }
+        if(blocked_piece_count === 1 && target_piece === "♚" && turn !== target_color)
+        {
+          console.log("king in check");
+          break;
+        }
       }
 
       //check next square in same direction
@@ -339,6 +382,25 @@ function coordToSquare(coordY, coordX)
   return files[coordX]+(coordY+1);
 }
 
+//returns true if coordinate is on board
+function isInBounds(x, y) 
+{
+  return (x >= 0 && x <= 7 && y >= 0 && y <= 7);
+}
+
+//checks if square is occupied
+function isOccupied(piece)
+{
+  if(piece === null || piece === "●") //not occupied
+  {
+    return false;
+  }
+  else
+  {
+    return true;
+  }
+}
+
 //return all possible moves for given color
 function getAllMoves(color, board_array)
 {
@@ -382,6 +444,10 @@ function ChessBoard()
   //calculate and highlight legal moves
   function ClickPiece(index_y, index_x)
   {
+    //if king in check, fix to not return array
+    //turn console log "king in check" into state whiteCheck and blackCheck
+    let arr = getAllMoves((playTurn === "black") ? "white" : "black", board_array);
+
     if(playTurn === board_array[index_y][index_x].color)
     {
       selectedCoordY.current = index_y;
@@ -464,6 +530,7 @@ function ChessBoard()
     selectedCoordY.current = null;
     selectedCoordX.current = null;
     selectedType.current = null;
+    setHistory([]);
     setPlayTurn("white");
   }
 
