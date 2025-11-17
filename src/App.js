@@ -34,11 +34,20 @@ class PieceObject {
 
 //object for possible moves
 class MoveObject {
-  constructor(coordX, coordY, opposite = null, special = null) {
+  constructor(coordX, coordY, opposite = null, special = null, check = null) {
     this.coordX = coordX;
     this.coordY = coordY;
     this.capture = opposite;
     this.special = special;  //castling, en passant, promotion etc
+    this.check = check;
+  }
+}
+
+//object for checks
+class AttackObject {
+    constructor(attacker, squares_to_block = null) {
+    this.attacker = attacker;
+    this.squares_to_block = squares_to_block;
   }
 }
 
@@ -64,6 +73,7 @@ function initBoard(setBoardArray)
 function getLegalMoves(y_coord, x_coord, type, color, board_array, checkOpposite, history = [])
 {
   let tempArr = [];
+
   if(type === "♟")
   {
     pawnLogic(y_coord, x_coord, board_array, color, tempArr, checkOpposite, history);
@@ -212,16 +222,17 @@ function pawnLogic(y_coord, x_coord, board_array, color, tempArr, checkOpposite,
       if(checkOpposite) //corner captures always possible on king move check
       {
         tempArr.push(new MoveObject(coordX, coordY, true, promote)); 
+        if(target_piece === "♚" && color !== target_color)
+        {
+          const attack_obj = new AttackObject({y: y_coord, x: x_coord});
+          tempArr.push(new MoveObject(coordX, coordY, null, null, attack_obj));
+        }
       }
       else
       {
         if(color !== target_color && target_piece !== null) //opposite color piece for possible capture
         {
           tempArr.push(new MoveObject(coordX, coordY, true, promote));
-        }
-        if(target_piece === "♚" && color !== target_color)
-        {
-          console.log("king in check");
         }
       }
     }
@@ -259,7 +270,8 @@ function moveToSquares(mvt_arr, y_coord, x_coord, board_array, turn)
 
         if(target_piece === "♚" && turn !== target_color)
         {
-          console.log("king in check");
+          const attack_obj = new AttackObject({y: y_coord, x: x_coord});
+          tempArr.push(new MoveObject(coordX, coordY, null, null, attack_obj));
         }
       }
     }
@@ -268,7 +280,7 @@ function moveToSquares(mvt_arr, y_coord, x_coord, board_array, turn)
 }
 
 //movement logic used by rook, bishop and queen
-function moveUntilOccupied(mvt_arr, y_coord, x_coord, board_array, turn, tempArr)
+function moveUntilOccupied(mvt_arr, y_coord, x_coord, board_array, turn, tempArr, checkArr)
 {
   //loop through movement array
   for(let i=0; i<mvt_arr.length; i++)
@@ -282,8 +294,11 @@ function moveUntilOccupied(mvt_arr, y_coord, x_coord, board_array, turn, tempArr
     let blocked_piece_count = 0; //check how many opponent pieces are blocking way to the king
     let blocking_piece = null;
 
+    let squares_checked = [];
+
     while(isInBounds(coordX, coordY)) //within bounds
     {
+      squares_checked.push({x: coordX, y: coordY});
       let target_piece = board_array[coordY][coordX].piece;
       let target_color = board_array[coordY][coordX].color;
 
@@ -302,7 +317,7 @@ function moveUntilOccupied(mvt_arr, y_coord, x_coord, board_array, turn, tempArr
           {
             tempArr.push(new MoveObject(coordX, coordY, true));
             blocking_piece = coordToSquare(coordY, coordX);
-          }          
+          }
           blocked_piece_count++;
         }
         else
@@ -319,7 +334,10 @@ function moveUntilOccupied(mvt_arr, y_coord, x_coord, board_array, turn, tempArr
         }
         if(blocked_piece_count === 1 && target_piece === "♚" && turn !== target_color)
         {
-          console.log("king in check");
+          squares_checked.splice(squares_checked.length-1, 1);
+          const attack_obj = new AttackObject({y: y_coord, x: x_coord}, squares_checked);
+
+          tempArr.push(new MoveObject(coordX, coordY, null, null, attack_obj));
           break;
         }
       }
@@ -415,10 +433,11 @@ function getAllMoves(color, board_array)
         let piece = board_array[y][x].piece;
         let color = board_array[y][x].color;
 
-        tempArr = tempArr.concat(getLegalMoves(y, x, piece, color, board_array, true));
+        tempArr = tempArr.concat(getLegalMoves(y, x, piece, color, board_array, true, []));
       }
     }
   }
+
   return tempArr;
 }
 
@@ -444,15 +463,26 @@ function ChessBoard()
   //calculate and highlight legal moves
   function ClickPiece(index_y, index_x)
   {
-    //if king in check, fix to not return array
-    //turn console log "king in check" into state whiteCheck and blackCheck
-    let arr = getAllMoves((playTurn === "black") ? "white" : "black", board_array);
-
     if(playTurn === board_array[index_y][index_x].color)
     {
       selectedCoordY.current = index_y;
       selectedCoordX.current = index_x;
       let piece = selectedType.current = board_array[index_y][index_x].piece;
+
+      //check logic
+      const opponentMoves = getAllMoves((playTurn === "black") ? "white" : "black", board_array);
+      for(let i=0; i<opponentMoves.length; i++)
+      {
+        if(opponentMoves[i].check !== null)
+        {
+          console.log("CHECK", opponentMoves[i].check);
+          //filter possible moves here
+          //move king
+          //capture opponentMoves[i].check.attacker
+          //move piece to opponentMoves[i].check.squares_to_block
+          //if none possible = checkmate
+        }
+      }
 
       //calculate legal moves
       legalMoves.current = []; //coordX, coordY, capture
