@@ -1,10 +1,7 @@
 /*
 TODO:
 - add option to promote pawn to other pieces than queen
-- implement check
-  > block bishop, rook, queen line of capture
-  > move king
-  > capture piece
+- play sound if trying to move piece with no moves while in check
 - implement blocked piece moves if it would result with king in check
   > only pieces which can pin possible - bishop, rook, queen
 - implement win/draw conditions: checkmate, stalemate, insufficient material, fifty-move rule, threefold repetition
@@ -368,11 +365,11 @@ function highLightMoves(board_array, setBoardArray, legalMoves, index_y, index_x
   }
 
   //set highlights
-  for(let i=0; i<legalMoves.current.length; i++)
+  for(let i=0; i<legalMoves.length; i++)
   {
-    let coordY = legalMoves.current[i].coordY;
-    let coordX = legalMoves.current[i].coordX;
-    let capture = legalMoves.current[i].capture;
+    let coordY = legalMoves[i].coordY;
+    let coordX = legalMoves[i].coordX;
+    let capture = legalMoves[i].capture;
 
     if(capture === null) //show possible moves
     {
@@ -385,7 +382,7 @@ function highLightMoves(board_array, setBoardArray, legalMoves, index_y, index_x
     else{} //own piece, do nothing
   }
 
-  if(legalMoves.current.length > 0) //set piece as selected only if it has legal moves
+  if(legalMoves.length > 0) //set piece as selected only if it has legal moves
   {
     copy[index_y][index_x].cssClass = "selected";
   }
@@ -441,6 +438,75 @@ function getAllMoves(color, board_array)
   return tempArr;
 }
 
+//returns array of possible moves if in check
+function kingInCheck(legalMoves, playTurn, board_array, piece)
+{
+  const opponentMoves = getAllMoves((playTurn === "black") ? "white" : "black", board_array);
+  let checkCount = 0;
+  let checkIndex = null;
+  for(let i=0; i<opponentMoves.length; i++)
+  {
+    if(opponentMoves[i].check !== null)
+    {
+      checkCount++;
+      checkIndex = i;
+    }
+  }
+
+  let block_check_arr = [];
+  if(checkCount === 2)
+  {
+    //only king move possible on double check
+    if(piece !== "♚")
+    {
+      block_check_arr = [];
+    }
+  }
+  else if(checkCount === 1)
+  {
+    //move piece to block it/capture it
+    if(piece !== "♚")
+    {
+      for(let i=0; i<legalMoves.length; i++)
+      {
+        let legalX = legalMoves[i].coordX;
+        let legalY = legalMoves[i].coordY;
+
+        opponentMoves[checkIndex].check.squares_to_block.push(opponentMoves[checkIndex].check.attacker);
+        for(let j=0; j<opponentMoves[checkIndex].check.squares_to_block.length; j++)
+        {
+          let opponent_x = opponentMoves[checkIndex].check.squares_to_block[j].x;
+          let opponent_y = opponentMoves[checkIndex].check.squares_to_block[j].y;
+
+          if(coordToSquare(legalY, legalX) === coordToSquare(opponent_y, opponent_x))
+          {
+            //check blocked, keep it as legal move
+            if(coordToSquare(legalY, legalX) === coordToSquare(opponentMoves[checkIndex].check.attacker.y, opponentMoves[checkIndex].check.attacker.x))
+            {
+              block_check_arr.push(new MoveObject(legalX, legalY, true)); //capture
+            }
+            else
+            {
+              block_check_arr.push(new MoveObject(legalX, legalY)); //block
+            }              
+            break;
+          }
+        }
+      }
+    }
+    else
+    {
+      block_check_arr = legalMoves;
+    }
+  }
+  else
+  {
+    block_check_arr = legalMoves;
+  } //not in check
+
+  return block_check_arr;
+}
+
 //chess board
 function ChessBoard() 
 {
@@ -469,27 +535,15 @@ function ChessBoard()
       selectedCoordX.current = index_x;
       let piece = selectedType.current = board_array[index_y][index_x].piece;
 
-      //check logic
-      const opponentMoves = getAllMoves((playTurn === "black") ? "white" : "black", board_array);
-      for(let i=0; i<opponentMoves.length; i++)
-      {
-        if(opponentMoves[i].check !== null)
-        {
-          console.log("CHECK", opponentMoves[i].check);
-          //filter possible moves here
-          //move king
-          //capture opponentMoves[i].check.attacker
-          //move piece to opponentMoves[i].check.squares_to_block
-          //if none possible = checkmate
-        }
-      }
-
       //calculate legal moves
       legalMoves.current = []; //coordX, coordY, capture
       legalMoves.current = getLegalMoves(index_y, index_x, piece, playTurn, board_array, false, history);
-      
+
+      //check logic
+      legalMoves.current = kingInCheck(legalMoves.current, playTurn, board_array, piece);
+
       //highlight legal moves
-      highLightMoves(board_array, setBoardArray, legalMoves, index_y, index_x);
+      highLightMoves(board_array, setBoardArray, legalMoves.current, index_y, index_x);
     }
   }
 
