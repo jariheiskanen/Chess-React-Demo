@@ -1,16 +1,18 @@
 /*
 TODO:
-- add option to promote pawn to other pieces than queen
-- play sound if trying to move piece with no moves while in check
 - implement blocked piece moves if it would result with king in check
   > only pieces which can pin possible - bishop, rook, queen
 - implement win/draw conditions: checkmate, stalemate, insufficient material, fifty-move rule, threefold repetition
+
 - improve UI
+- add option to promote pawn to other pieces than queen
 */
 
 import { useState, useEffect, useRef } from 'react';
 import useSound from 'use-sound'
 import piece_audio from "./assets/chess-move.mp3";
+import in_check from "./assets/error-in-check.mp3";
+
 
 export default function App() {
   return(
@@ -41,8 +43,8 @@ class MoveObject {
 }
 
 //object for checks
-class AttackObject {
-    constructor(attacker, squares_to_block = null) {
+class CheckObject {
+    constructor(attacker, squares_to_block = []) {
     this.attacker = attacker;
     this.squares_to_block = squares_to_block;
   }
@@ -221,13 +223,13 @@ function pawnLogic(y_coord, x_coord, board_array, color, tempArr, checkOpposite,
         tempArr.push(new MoveObject(coordX, coordY, true, promote)); 
         if(target_piece === "♚" && color !== target_color)
         {
-          const attack_obj = new AttackObject({y: y_coord, x: x_coord});
+          const attack_obj = new CheckObject({y: y_coord, x: x_coord});
           tempArr.push(new MoveObject(coordX, coordY, null, null, attack_obj));
         }
       }
       else
       {
-        if(color !== target_color && target_piece !== null) //opposite color piece for possible capture
+        if(color !== target_color && target_piece !== null && target_piece !== "●") //opposite color piece for possible capture
         {
           tempArr.push(new MoveObject(coordX, coordY, true, promote));
         }
@@ -267,7 +269,7 @@ function moveToSquares(mvt_arr, y_coord, x_coord, board_array, turn)
 
         if(target_piece === "♚" && turn !== target_color)
         {
-          const attack_obj = new AttackObject({y: y_coord, x: x_coord});
+          const attack_obj = new CheckObject({y: y_coord, x: x_coord});
           tempArr.push(new MoveObject(coordX, coordY, null, null, attack_obj));
         }
       }
@@ -332,7 +334,7 @@ function moveUntilOccupied(mvt_arr, y_coord, x_coord, board_array, turn, tempArr
         if(blocked_piece_count === 1 && target_piece === "♚" && turn !== target_color)
         {
           squares_checked.splice(squares_checked.length-1, 1);
-          const attack_obj = new AttackObject({y: y_coord, x: x_coord}, squares_checked);
+          const attack_obj = new CheckObject({y: y_coord, x: x_coord}, squares_checked);
 
           tempArr.push(new MoveObject(coordX, coordY, null, null, attack_obj));
           break;
@@ -439,7 +441,7 @@ function getAllMoves(color, board_array)
 }
 
 //returns array of possible moves if in check
-function kingInCheck(legalMoves, playTurn, board_array, piece)
+function kingInCheck(legalMoves, playTurn, board_array, piece, errorSound)
 {
   const opponentMoves = getAllMoves((playTurn === "black") ? "white" : "black", board_array);
   let checkCount = 0;
@@ -460,6 +462,7 @@ function kingInCheck(legalMoves, playTurn, board_array, piece)
     if(piece !== "♚")
     {
       block_check_arr = [];
+      errorSound();
     }
   }
   else if(checkCount === 1)
@@ -493,6 +496,10 @@ function kingInCheck(legalMoves, playTurn, board_array, piece)
           }
         }
       }
+      if(block_check_arr.length === 0)
+      {
+        errorSound();
+      }
     }
     else
     {
@@ -511,7 +518,10 @@ function kingInCheck(legalMoves, playTurn, board_array, piece)
 function ChessBoard() 
 {
   const [board_array, setBoardArray] = useState(Array.from({ length: 8 }, () => Array.from({ length: 8 }, () => (new PieceObject(null)))));
+
   const [playSound] = useSound(piece_audio); //piece moving sound effect
+  const [playError] = useSound(in_check); //piece moving sound effect
+  
   const [playTurn, setPlayTurn] = useState("white"); //white/black turn
   const [history, setHistory] = useState([]); //move history, WIP
 
@@ -525,6 +535,12 @@ function ChessBoard()
     initBoard(setBoardArray);
     //eslint-disable-next-line
   },[]);
+
+  //play error sound
+  function errorInCheck()
+  {
+    playError();
+  }
 
   //calculate and highlight legal moves
   function ClickPiece(index_y, index_x)
@@ -540,7 +556,7 @@ function ChessBoard()
       legalMoves.current = getLegalMoves(index_y, index_x, piece, playTurn, board_array, false, history);
 
       //check logic
-      legalMoves.current = kingInCheck(legalMoves.current, playTurn, board_array, piece);
+      legalMoves.current = kingInCheck(legalMoves.current, playTurn, board_array, piece, errorInCheck);
 
       //highlight legal moves
       highLightMoves(board_array, setBoardArray, legalMoves.current, index_y, index_x);
