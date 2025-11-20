@@ -33,20 +33,22 @@ class PieceObject {
 
 //object for possible moves
 class MoveObject {
-  constructor(coordX, coordY, opposite = null, special = null, check = null) {
+  constructor(coordX, coordY, opposite = null, special = null, check = null, pin = null) {
     this.coordX = coordX;
     this.coordY = coordY;
     this.capture = opposite;
     this.special = special;  //castling, en passant, promotion etc
     this.check = check;
+    this.pin = pin;
   }
 }
 
-//object for checks
+//object for checks and pins
 class CheckObject {
-    constructor(attacker, squares_to_block = []) {
+    constructor(attacker, squares_to_block = [], pin = null) {
     this.attacker = attacker;
     this.squares_to_block = squares_to_block;
+    this.pinned = pin;
   }
 }
 
@@ -146,7 +148,6 @@ function kingLogic(y_coord, x_coord, board_array, tempArr, color, checkOpposite)
         if(tempArr[i].coordY === illegalMoves[j].coordY && tempArr[i].coordX === illegalMoves[j].coordX)
         {
           tempArr.splice(i, 1); //remove illegal move from legal moves
-          i--; //fix index
           break;
         }
       }
@@ -291,9 +292,8 @@ function moveUntilOccupied(mvt_arr, y_coord, x_coord, board_array, turn, tempArr
     let coordX = x_coord+mvt_vertical;
 
     let blocked_piece_count = 0; //check how many opponent pieces are blocking way to the king
-    let blocking_piece = null;
-
-    let squares_checked = [];
+    let squares_checked = []; //every coordinate that has been checked
+    let pinned_piece = null; //pinned piece coordinate
 
     while(isInBounds(coordX, coordY)) //within bounds
     {
@@ -314,8 +314,8 @@ function moveUntilOccupied(mvt_arr, y_coord, x_coord, board_array, turn, tempArr
         {
           if(blocked_piece_count < 1) //piece is blocking the way, don't add new moves
           {
+            pinned_piece = {x: coordX, y: coordY};
             tempArr.push(new MoveObject(coordX, coordY, true));
-            blocking_piece = coordToSquare(coordY, coordX);
           }
           blocked_piece_count++;
         }
@@ -328,16 +328,21 @@ function moveUntilOccupied(mvt_arr, y_coord, x_coord, board_array, turn, tempArr
         //king is counted for blocked_piece_count
         if(blocked_piece_count === 2 && target_piece === "♚" && turn !== target_color)
         {
-          console.log("pinned piece: "+blocking_piece);
-          break;
+          squares_checked.splice(squares_checked.length-1, 1); //remove king from checked squares
+          const pin_obj = new CheckObject({y: y_coord, x: x_coord}, squares_checked, pinned_piece);
+
+          //set opposite as false to not treat it as possible move
+          tempArr.push(new MoveObject(coordX, coordY, false, null, null, pin_obj));
+          break; //don't check squares behind king
         }
+        //king in check
         if(blocked_piece_count === 1 && target_piece === "♚" && turn !== target_color)
         {
-          squares_checked.splice(squares_checked.length-1, 1);
+          squares_checked.splice(squares_checked.length-1, 1); //remove king from checked squares
           const attack_obj = new CheckObject({y: y_coord, x: x_coord}, squares_checked);
 
           tempArr.push(new MoveObject(coordX, coordY, null, null, attack_obj));
-          break;
+          break; //don't check squares behind king
         }
       }
 
@@ -367,6 +372,7 @@ function highLightMoves(board_array, setBoardArray, legalMoves, index_y, index_x
   }
 
   //set highlights
+  let possible_moves = 0;
   for(let i=0; i<legalMoves.length; i++)
   {
     let coordY = legalMoves[i].coordY;
@@ -376,15 +382,17 @@ function highLightMoves(board_array, setBoardArray, legalMoves, index_y, index_x
     if(capture === null) //show possible moves
     {
       copy[coordY][coordX] = new PieceObject("●");
+      possible_moves++
     }
     else if(capture === true)//show captures
     {
       copy[coordY][coordX].cssClass = "capture";
+      possible_moves++
     }
     else{} //own piece, do nothing
   }
 
-  if(legalMoves.length > 0) //set piece as selected only if it has legal moves
+  if(possible_moves > 0) //set piece as selected only if it has legal moves
   {
     copy[index_y][index_x].cssClass = "selected";
   }
@@ -464,6 +472,26 @@ function kingInCheck(legalMoves, playTurn, board_array, piece, errorSound)
       block_check_arr = [];
       errorSound();
     }
+    else
+    {
+      let king_moves = 0;
+      for(let i=0; i<legalMoves.length; i++)
+      {
+        if(legalMoves[i].capture !== false)
+        {
+          king_moves++;
+        }
+      }
+      //if king has no moves, play error sound
+      if(king_moves > 0)
+      {
+        block_check_arr = legalMoves;
+      }
+      else
+      {
+        console.log("checkmate - no possible moves while double checked");
+      }
+    }
   }
   else if(checkCount === 1)
   {
@@ -501,17 +529,87 @@ function kingInCheck(legalMoves, playTurn, board_array, piece, errorSound)
         errorSound();
       }
     }
-    else
+    else //king moves
     {
-      block_check_arr = legalMoves;
+      let king_moves = 0;
+      for(let i=0; i<legalMoves.length; i++)
+      {
+        if(legalMoves[i].capture !== false)
+        {
+          king_moves++;
+        }
+      }
+      //if king has no moves, play error sound
+      if(king_moves > 0)
+      {
+        block_check_arr = legalMoves;
+      }
+      else
+      {
+        errorSound();
+      }
     }
   }
   else
   {
     block_check_arr = legalMoves;
-  } //not in check
+  }
 
   return block_check_arr;
+}
+
+//returns array of possible moves after filtering pins
+function pinLogic(legalMoves, playTurn, board_array, index_y, index_x)
+{
+  const opponentMoves = getAllMoves((playTurn === "black") ? "white" : "black", board_array);
+  for(let i=0; i<opponentMoves.length; i++)
+  {
+    if(opponentMoves[i].pin !== null) //if any piece is pinned
+    {
+      let pinned_piece = opponentMoves[i].pin.pinned;
+      //let attacker = opponentMoves[i].pin.attacker;
+      if(pinned_piece.x === index_x && pinned_piece.y === index_y) //if selected piece is pinned
+      {
+        //remove pinned piece from possible moves
+        let squares = opponentMoves[i].pin.squares_to_block;
+        for(let j=0; j<squares.length; j++)
+        {
+          if(squares[j].x === pinned_piece.x && squares[j].y === pinned_piece.y)
+          {
+            squares.splice(j, 1);
+            break;
+          }
+        }
+        //add attacker to possible moves
+        squares.push(opponentMoves[i].pin.attacker);
+
+        //filter moves
+        let filteredMoves = [];
+        for(let j=0; j<squares.length; j++)
+        {
+          for(let k=0; k<legalMoves.length; k++)
+          {
+            if(squares[j].x === legalMoves[k].coordX && squares[j].y === legalMoves[k].coordY)
+            {
+              let target_y = squares[j].y;
+              let target_x = squares[j].x;
+              if(isOccupied(board_array[target_y][target_x].piece))
+              {
+                filteredMoves.push(new MoveObject(target_x, target_y, true));
+              }
+              else
+              {
+                filteredMoves.push(new MoveObject(target_x, target_y));
+              }
+            }
+          }
+        }
+        return filteredMoves;
+      }
+    }
+  }
+
+  return legalMoves; //return all moves if no pins detected or pinned piece selected
 }
 
 //chess board
@@ -555,9 +653,12 @@ function ChessBoard()
       legalMoves.current = []; //coordX, coordY, capture
       legalMoves.current = getLegalMoves(index_y, index_x, piece, playTurn, board_array, false, history);
 
+      //pin logic
+      legalMoves.current = pinLogic(legalMoves.current, playTurn, board_array, index_y, index_x);
+
       //check logic
       legalMoves.current = kingInCheck(legalMoves.current, playTurn, board_array, piece, errorInCheck);
-
+      
       //highlight legal moves
       highLightMoves(board_array, setBoardArray, legalMoves.current, index_y, index_x);
     }
