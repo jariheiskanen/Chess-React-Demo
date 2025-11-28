@@ -26,12 +26,19 @@ export default function App() {
 }
 
 //object for chess piece on board
-class PieceObject {
-  constructor(piece, color = null, className = "", hasMoved = false) {
-    this.piece = piece;
-    this.color = color;
-    this.cssClass = className;
-    this.hasMoved = hasMoved;
+class PieceObject 
+{
+  constructor({
+    piece,
+    color = null,
+    cssClass = "",
+    hasMoved = false,
+  })
+  {
+    this.piece = piece; 
+    this.color = color; 
+    this.cssClass = cssClass; //css class for the piece for capture highlight etc
+    this.hasMoved = hasMoved; //if piece has moved
   }
 }
 
@@ -72,16 +79,21 @@ class CheckObject {
 function initBoard(setBoardArray)
 {
   const pieces = ["♜","♞","♝","♛","♚","♝","♞","♜"];
-  const copy = Array.from({ length: 8 }, () => Array.from({ length: 8 }, () => (new PieceObject(null))));
+  let piece_obj = {piece: null};
+  const copy = Array.from({ length: 8 }, () => Array.from({ length: 8 }, () => (new PieceObject(piece_obj))));
 
   for(let i=0; i<pieces.length; i++)
   {
-    copy[0][i] = new PieceObject(pieces[i], "white");
-    copy[7][i] = new PieceObject(pieces[i], "black");
+    piece_obj = {piece: pieces[i], color: "white"};
+    copy[0][i] = new PieceObject(piece_obj);
+    piece_obj = {piece: pieces[i], color: "black"};
+    copy[7][i] = new PieceObject(piece_obj);
   }
-  
-  copy[1] = Array(8).fill(new PieceObject("♟", "white"));
-  copy[6] = Array(8).fill(new PieceObject("♟", "black"));
+
+  piece_obj = {piece: "♟", color: "white"};
+  copy[1] = Array(8).fill(new PieceObject(piece_obj));
+  piece_obj = {piece: "♟", color: "black"};
+  copy[6] = Array(8).fill(new PieceObject(piece_obj));
 
   setBoardArray(copy);
 }
@@ -461,6 +473,7 @@ function highLightMoves(board_array, setBoardArray, legalMoves, index_y, index_x
 {
   //create deep copy
   const copy = board_array.map(row => row.map(cell => ({ ...cell })));
+  let piece_obj = {piece: null};
   //reset highlights
   for(let i=0; i<8; i++)
   {
@@ -469,7 +482,7 @@ function highLightMoves(board_array, setBoardArray, legalMoves, index_y, index_x
       copy[i][j].cssClass = "";
       if(copy[i][j].piece === "●")
       {
-        copy[i][j] = new PieceObject(null);
+        copy[i][j] = new PieceObject(piece_obj);
       }
     }
   }
@@ -484,7 +497,8 @@ function highLightMoves(board_array, setBoardArray, legalMoves, index_y, index_x
 
     if(capture === null) //show possible moves
     {
-      copy[coordY][coordX] = new PieceObject("●");
+      piece_obj = {piece: "●"};
+      copy[coordY][coordX] = new PieceObject(piece_obj);
       possible_moves++
     }
     else if(capture === true)//show captures
@@ -812,7 +826,8 @@ function isOccupied(piece)
 //chess board
 function ChessBoard() 
 {
-  const [board_array, setBoardArray] = useState(Array.from({ length: 8 }, () => Array.from({ length: 8 }, () => (new PieceObject(null)))));
+  let piece_obj = {piece: "●"};
+  const [board_array, setBoardArray] = useState(Array.from({ length: 8 }, () => Array.from({ length: 8 }, () => (new PieceObject(piece_obj)))));
 
   const [playSound] = useSound(piece_audio); //piece moving sound effect
   const [playError] = useSound(in_check); //piece moving sound effect
@@ -878,25 +893,33 @@ function ChessBoard()
       const moveIndex = legalMoves.current.findIndex(e => e.y === endY && e.x === endX);
       if(moveIndex !== -1) //legal move
       {
-        copy[endY][endX] = new PieceObject(piece, playTurn, null, true);//move piece
-        copy[startY][startX] = new PieceObject(null); //clear original position
+        piece_obj = {piece: piece, color: playTurn, hasMoved: true};
+        copy[endY][endX] = new PieceObject(piece_obj);//move piece
+        piece_obj = {piece: null};
+        copy[startY][startX] = new PieceObject(piece_obj); //clear original position
         
         //special move cases
         switch(legalMoves.current[moveIndex].special) 
         {
           case "castle_king":
-            copy[endY][5] = new PieceObject("♜", playTurn, null, true);//move rook to other side of king
-            copy[endY][7] = new PieceObject(null); //clear rook original position
+            piece_obj = {piece: "♜", color: playTurn, hasMoved: true};
+            copy[endY][5] = new PieceObject(piece_obj);//move rook to other side of king
+            piece_obj = {piece: null};
+            copy[endY][7] = new PieceObject(piece_obj); //clear rook original position
             break;
           case "castle_queen":
-            copy[endY][3] = new PieceObject("♜", playTurn, null, true);//move rook to other side of king
-            copy[endY][0] = new PieceObject(null); //clear rook original position
+            piece_obj = {piece: "♜", color: playTurn, hasMoved: true};
+            copy[endY][3] = new PieceObject(piece_obj);//move rook to other side of king
+            piece_obj = {piece: null};
+            copy[endY][0] = new PieceObject(piece_obj); //clear rook original position
             break;
           case "en_passant":
-            copy[startY][endX] = new PieceObject(null); //clear pawn being captured
+            piece_obj = {piece: null};
+            copy[startY][endX] = new PieceObject(piece_obj); //clear pawn being captured
             break;
           case "promotion":
-            copy[endY][endX] = new PieceObject("♛", playTurn, null, true);//turn pawn into queen
+            piece_obj = {piece: "♜", color: playTurn, hasMoved: true};
+            copy[endY][endX] = new PieceObject(piece_obj);//turn pawn into queen
             break;
           default:
             break;
@@ -932,7 +955,8 @@ function ChessBoard()
         copy[startY][startX].cssClass = "";
         if(copy[coordY][coordX].piece === "●")
         {
-          copy[coordY][coordX] = new PieceObject(null);
+          piece_obj = {piece: null};
+          copy[coordY][coordX] = new PieceObject(piece_obj);
         }
       }
       legalMoves.current = [];
