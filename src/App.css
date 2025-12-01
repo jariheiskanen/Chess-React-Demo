@@ -33,11 +33,25 @@ body
 {
   max-height: 400px;
   overflow: auto;
+  display: flex;
+  flex-wrap: wrap;
+  text-align: left;
+}
+
+.move-log
+{
+  width: 50%;
+  padding: 5px 0px 5px 0px;
 }
 
 .move-white
 {
   color: white;
+}
+
+.move-selected
+{
+  background-color: #c6c6c6;
 }
 
 .reset-board
@@ -130,3 +144,4 @@ body
 
   background-color: rgb(153 163 255 / 50%)
 }
+

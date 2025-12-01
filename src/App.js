@@ -1,8 +1,5 @@
 /*
 TODO:
-- refactor code
-  > create general function to group up move filtering inside clickStart and clickEnd
-  > edit variable names to be more logical
 - test every piece logic/check/pin
 - browse move history
 - implement win/draw conditions: insufficient material, fifty-move rule, threefold repetition
@@ -832,7 +829,8 @@ function ChessBoard()
   const [playError] = useSound(in_check); //piece moving sound effect
   
   const [playTurn, setPlayTurn] = useState("white"); //white/black turn
-  const [history, setHistory] = useState([]); //move history, WIP
+  const [history, setHistory] = useState([]); //move history
+  const [historyIndex, setHistoryIndex] = useState(null); //index for current selected history browsing, updates to latest move by default
 
   let legalMoves = useRef([]);
   let selectedCoordY = useRef(null);
@@ -939,7 +937,8 @@ function ChessBoard()
             break;
         }
 
-        setHistory(history => [...history,{start_y: startY, start_x: startX, end_y: endY, end_x: endX, piece: piece, color: playTurn, move: coordToSquare(endY, endX)}]);
+        setHistory(history => [...history,{start: {x: startX, y: startY}, end: {x: endX, y: endY}, piece: piece, color: playTurn, move: coordToSquare(endY, endX)}]);
+        setHistoryIndex(history.length);
         setPlayTurn(opposite(playTurn));
         playSound();
       }
@@ -963,6 +962,7 @@ function ChessBoard()
     }
   }
 
+  //reset board from right panel button
   function resetBoard()
   {
     initBoard(setBoardArray);
@@ -972,6 +972,21 @@ function ChessBoard()
     selectedType.current = null;
     setHistory([]);
     setPlayTurn("white");
+  }
+
+  //click event on right side history panel
+  function browseHistory(index)
+  {
+    setHistoryIndex(index);
+    for(let i = history.length-1; i > index; i--)
+    {
+      //perform these moves, no legality checks needed
+      //move pieces from end squares to start squares
+      //undo captures/special moves
+      //disable moves if not at current move
+
+      console.log(history[i]);
+    }
   }
 
   //generate board dynamically
@@ -998,25 +1013,45 @@ function ChessBoard()
     board_rows.push(<div key={y} className={'board-row row-'+y}>{row_arr}</div>);
   }
 
-  //generate move history
-  let moveHistory = [];
-  for(let i=0; i<history.length; i++)
-  {
-    moveHistory.push(<div className={"move-"+history[i].color} key={i} >{(i+1)+". "+history[i].piece+history[i].move}</div>);
-  }
-
   return(
   <>
   <div className='chess-board'>{board_rows}</div>
   <div className='info-panel'>
     <div className="turn-counter">{playTurn+" to move"}</div>
-    <div className="move-history">{moveHistory}</div>    
+    <MoveHistory history={history} selected={historyIndex} browseHistory={browseHistory}/>
     <InitButton resetBoard={()=>resetBoard()}/>
   </div>
   </>
   );
 }
 
+//right panel move history
+function MoveHistory({history, selected, browseHistory})
+{
+  let moveHistory = [];
+  for(let i=0; i<history.length; i++)
+  {
+    let turn_counter = Math.ceil((i+1)/2);
+    let turn_number = turn_counter+". ";
+    if(history[i].color === "black")
+    {
+      turn_number = "";
+    }
+
+    let selected_move = "";
+    if(i === selected)
+    {
+      selected_move = "move-selected";
+    }
+    let move = <button className={selected_move+" move-log move-"+history[i].color} key={i} onClick={() => browseHistory(i)}>{turn_number+history[i].piece+history[i].move}</button>;
+
+    moveHistory.push(move);
+  }
+  
+  return <div className='move-history'>{moveHistory}</div>;
+}
+
+//right panel reset
 function InitButton({resetBoard})
 {
   return <button className='reset-board' onClick={resetBoard}>Reset Board</button>;
