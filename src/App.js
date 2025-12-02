@@ -2,6 +2,7 @@
 TODO:
 - test every piece logic/check/pin
 - browse move history
+- fix en passant
 - implement win/draw conditions: insufficient material, fifty-move rule, threefold repetition
 
 - improve UI
@@ -848,32 +849,39 @@ function ChessBoard()
   //calculate and highlight legal moves
   function ClickPiece(index_y, index_x)
   {
-    if(playTurn === board_array[index_y][index_x].color)
+    if(history.length === historyIndex+1 || history.length === 0) //if not browsing history
     {
-      selectedCoordY.current = index_y;
-      selectedCoordX.current = index_x;
-      let piece = selectedType.current = board_array[index_y][index_x].piece;
-
-      //calculate legal moves
-      legalMoves.current = []; //coordX, coordY, capture
-      legalMoves.current = getLegalMoves(index_y, index_x, piece, false, gameData, gameData.turn);
-
-      let opponentMoves = getAllMoves(gameData, false, opposite(playTurn));
-      //filter pins for selected piece moves in case you are pinned
-      legalMoves.current = pinLogic(legalMoves.current, opponentMoves, board_array, index_y, index_x, piece);
-      //filter checks for selected piece in case you are in check
-      legalMoves.current = filterChecks(legalMoves.current, opponentMoves, piece);
-      //filter self captures used for king move check
-      legalMoves.current = filterSelf(legalMoves.current);      
-
-      //in check and trying to select a piece with no moves
-      if(legalMoves.current.length === 0 && inCheck(opponentMoves))
+      if(playTurn === board_array[index_y][index_x].color)
       {
-        playError();
-      }
+        selectedCoordY.current = index_y;
+        selectedCoordX.current = index_x;
+        let piece = selectedType.current = board_array[index_y][index_x].piece;
 
-      //highlight legal moves
-      highLightMoves(board_array, setBoardArray, legalMoves.current, index_y, index_x);
+        //calculate legal moves
+        legalMoves.current = []; //coordX, coordY, capture
+        legalMoves.current = getLegalMoves(index_y, index_x, piece, false, gameData, gameData.turn);
+
+        let opponentMoves = getAllMoves(gameData, false, opposite(playTurn));
+        //filter pins for selected piece moves in case you are pinned
+        legalMoves.current = pinLogic(legalMoves.current, opponentMoves, board_array, index_y, index_x, piece);
+        //filter checks for selected piece in case you are in check
+        legalMoves.current = filterChecks(legalMoves.current, opponentMoves, piece);
+        //filter self captures used for king move check
+        legalMoves.current = filterSelf(legalMoves.current);      
+
+        //in check and trying to select a piece with no moves
+        if(legalMoves.current.length === 0 && inCheck(opponentMoves))
+        {
+          playError();
+        }
+
+        //highlight legal moves
+        highLightMoves(board_array, setBoardArray, legalMoves.current, index_y, index_x);
+      }
+    }
+    else
+    {
+      console.log("go to current move first");
     }
   }
 
@@ -890,6 +898,8 @@ function ChessBoard()
       const moveIndex = legalMoves.current.findIndex(e => e.y === endY && e.x === endX);
       if(moveIndex !== -1) //legal move
       {
+        let capture_piece = copy[endY][endX].piece;
+
         piece_obj = {piece: piece, color: playTurn, hasMoved: true};
         copy[endY][endX] = new PieceObject(piece_obj);//move piece
         piece_obj = {piece: null};
@@ -937,7 +947,8 @@ function ChessBoard()
             break;
         }
 
-        setHistory(history => [...history,{start: {x: startX, y: startY}, end: {x: endX, y: endY}, piece: piece, color: playTurn, move: coordToSquare(endY, endX)}]);
+        let history_obj = {start: {x: startX, y: startY}, end: {x: endX, y: endY}, piece: piece, color: playTurn, capture: capture_piece, move: coordToSquare(endY, endX)};
+        setHistory(history => [...history,history_obj]);
         setHistoryIndex(history.length);
         setPlayTurn(opposite(playTurn));
         playSound();
@@ -977,16 +988,48 @@ function ChessBoard()
   //click event on right side history panel
   function browseHistory(index)
   {
-    setHistoryIndex(index);
-    for(let i = history.length-1; i > index; i--)
+    if(historyIndex < index) //browse forward, redo moves
     {
-      //perform these moves, no legality checks needed
-      //move pieces from end squares to start squares
-      //undo captures/special moves
-      //disable moves if not at current move
+      for(let i = historyIndex; i <= index; i++)
+      {
+        let h_start_x = history[i].start.x;
+        let h_start_y = history[i].start.y;
+        let h_end_x = history[i].end.x;
+        let h_end_y = history[i].end.y;
+        let piece = history[i].piece;
 
-      console.log(history[i]);
+        board_array[h_start_y][h_start_x] = new PieceObject({piece: null}); //empty start square
+        board_array[h_end_y][h_end_x] = new PieceObject({piece: piece, color: history[i].color}); //set piece back to end
+      }
     }
+    else //browse backwards in history, undo moves
+    {
+      for(let i = history.length-1; i > index; i--)
+      {
+        //undo special moves
+        //en passant, both side castles, promotion
+        
+        let h_start_x = history[i].start.x;
+        let h_start_y = history[i].start.y;
+        let h_end_x = history[i].end.x;
+        let h_end_y = history[i].end.y;
+        let piece = history[i].piece;
+
+        if(isOccupied(history[i].capture)) //if piece was captured, restore captured piece
+        {
+          board_array[h_end_y][h_end_x] = new PieceObject({piece: history[i].capture, color: opposite(history[i].color)});
+        }
+        else
+        {
+          board_array[h_end_y][h_end_x] = new PieceObject({piece: null}); //empty end square
+        }
+        
+        board_array[h_start_y][h_start_x] = new PieceObject({piece: piece, color: history[i].color}); //set piece back to start
+      }
+    }
+    
+    setBoardArray(board_array);
+    setHistoryIndex(index);
   }
 
   //generate board dynamically
