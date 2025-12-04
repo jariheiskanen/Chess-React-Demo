@@ -1,8 +1,7 @@
 /*
 TODO:
-- test every piece logic/check/pin
-- browse move history
-- fix en passant
+- checkmate alert happens before visual move happens, add seperate popup to fix
+- change move history into chess notation
 - implement win/draw conditions: insufficient material, fifty-move rule, threefold repetition
 
 - improve UI
@@ -174,7 +173,7 @@ function kingLogic(y_coord, x_coord, tempArr, king_move, gameData, color)
     {
       if(board_array[y_coord][x_coord-4].hasMoved === false) //rook hasn't moved
       {
-        const move_obj = {piece: piece_obj, x: x_coord-2, y: y_coord, special: "castle_king"};
+        const move_obj = {piece: piece_obj, x: x_coord-2, y: y_coord, special: "castle_queen"};
         tempArr.push(new MoveObject(move_obj));
       }
     }
@@ -267,9 +266,9 @@ function pawnLogic(y_coord, x_coord, tempArr, king_move, gameData, color)
       let checkStartY = y_coord+forward*2 //starting position for opponent pawn
 
       let pieceLast = history[history.length-1].piece;
-      let yStartLast  = history[history.length-1].start_y;
-      let yEndLast  = history[history.length-1].end_y;
-      let xEndLast  = history[history.length-1].end_x;
+      let yStartLast  = history[history.length-1].start.y;
+      let yEndLast  = history[history.length-1].end.y;
+      let xEndLast  = history[history.length-1].end.x;
 
       //if pawn moved next to this pawn from starting position
       if(pieceLast === "♟" && yEndLast === y_coord  && yStartLast === checkStartY)
@@ -925,29 +924,14 @@ function ChessBoard()
             copy[startY][endX] = new PieceObject(piece_obj); //clear pawn being captured
             break;
           case "promotion":
-            piece_obj = {piece: "♜", color: playTurn, hasMoved: true};
+            piece_obj = {piece: "♛", color: playTurn, hasMoved: true};
             copy[endY][endX] = new PieceObject(piece_obj);//turn pawn into queen
             break;
           default:
             break;
         }
 
-        //checks stalemate/checkmate
-        gameData = {board_data: copy, turn: playTurn, history: history};
-        const game_over = isGameOver(gameData);
-        switch (game_over) 
-        {
-          case "CHECKMATE":
-            alert("checkmate");
-            break;
-          case "STALEMATE":
-            alert("stalemate");
-            break;
-          default:
-            break;
-        }
-
-        let history_obj = {start: {x: startX, y: startY}, end: {x: endX, y: endY}, piece: piece, color: playTurn, capture: capture_piece, move: coordToSquare(endY, endX)};
+        let history_obj = {data: copy,start: {x: startX, y: startY}, end: {x: endX, y: endY}, piece: piece, color: playTurn, capture: capture_piece, move: coordToSquare(endY, endX)};
         setHistory(history => [...history,history_obj]);
         setHistoryIndex(history.length);
         setPlayTurn(opposite(playTurn));
@@ -970,6 +954,21 @@ function ChessBoard()
       }
       legalMoves.current = [];
       setBoardArray(copy);
+
+      //checks stalemate/checkmate
+      gameData = {board_data: copy, turn: playTurn, history: history};
+      const game_over = isGameOver(gameData);
+      switch (game_over) 
+      {
+        case "CHECKMATE":
+          alert("checkmate");
+          break;
+        case "STALEMATE":
+          alert("stalemate");
+          break;
+        default:
+          break;
+      }
     }
   }
 
@@ -988,48 +987,13 @@ function ChessBoard()
   //click event on right side history panel
   function browseHistory(index)
   {
-    if(historyIndex < index) //browse forward, redo moves
+    if(index >= 0 && index <= history.length-1) //check if browsing within history range
     {
-      for(let i = historyIndex; i <= index; i++)
-      {
-        let h_start_x = history[i].start.x;
-        let h_start_y = history[i].start.y;
-        let h_end_x = history[i].end.x;
-        let h_end_y = history[i].end.y;
-        let piece = history[i].piece;
+      let history_data = history[index].data;
 
-        board_array[h_start_y][h_start_x] = new PieceObject({piece: null}); //empty start square
-        board_array[h_end_y][h_end_x] = new PieceObject({piece: piece, color: history[i].color}); //set piece back to end
-      }
+      setBoardArray(history_data);
+      setHistoryIndex(index);
     }
-    else //browse backwards in history, undo moves
-    {
-      for(let i = history.length-1; i > index; i--)
-      {
-        //undo special moves
-        //en passant, both side castles, promotion
-        
-        let h_start_x = history[i].start.x;
-        let h_start_y = history[i].start.y;
-        let h_end_x = history[i].end.x;
-        let h_end_y = history[i].end.y;
-        let piece = history[i].piece;
-
-        if(isOccupied(history[i].capture)) //if piece was captured, restore captured piece
-        {
-          board_array[h_end_y][h_end_x] = new PieceObject({piece: history[i].capture, color: opposite(history[i].color)});
-        }
-        else
-        {
-          board_array[h_end_y][h_end_x] = new PieceObject({piece: null}); //empty end square
-        }
-        
-        board_array[h_start_y][h_start_x] = new PieceObject({piece: piece, color: history[i].color}); //set piece back to start
-      }
-    }
-    
-    setBoardArray(board_array);
-    setHistoryIndex(index);
   }
 
   //generate board dynamically
@@ -1091,7 +1055,17 @@ function MoveHistory({history, selected, browseHistory})
     moveHistory.push(move);
   }
   
-  return <div className='move-history'>{moveHistory}</div>;
+  return(
+    <>
+      <div className='move-history'>{moveHistory}</div>
+      <div className='history-buttons'>
+        <button onClick={() => browseHistory(0)}>&lt;&lt;</button>
+        <button onClick={() => browseHistory(selected-1)}>&lt;</button>
+        <button onClick={() => browseHistory(selected+1)}>&gt;</button>
+        <button onClick={() => browseHistory(history.length-1)}>&gt;&gt;</button>
+      </div>
+    </>
+  );
 }
 
 //right panel reset

@@ -54,6 +54,17 @@ body
   background-color: #c6c6c6;
 }
 
+.history-buttons
+{
+  margin-top: 20px;
+}
+
+.history-buttons button
+{
+  padding: 6px 12px;
+  margin: 5px;
+}
+
 .reset-board
 {
   position: absolute;
