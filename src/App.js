@@ -2,7 +2,7 @@
 TODO:
 - checkmate alert happens before visual move happens, add seperate popup to fix
 - change move history into chess notation
-- implement win/draw conditions: insufficient material, fifty-move rule, threefold repetition
+- implement win/draw conditions: insufficient material, threefold repetition
 
 - improve UI
 - add option to promote pawn to other pieces than queen
@@ -753,10 +753,49 @@ function inCheck(moves)
 //checks if game is over by checkmate/stalemate
 function isGameOver(gameData)
 {
+  let game_over = null;
+
+  //50-MOVE RULE
+  //check for 50-move rule, no pawn move or capture in last 50 moves
+  let fifty_move = true;
+  if(gameData.history.length >= 50) //calculate only if more than 50 moves played
+  {
+    //if capture or pawn move found in last 50 moves
+    for(let i = gameData.history.length-1; i >= gameData.history.length-50; i--) 
+    {
+      if(gameData.history[i].piece === "♟" || isOccupied(gameData.history[i].capture)) //capture shows captured piece instead of true/false
+      {
+        fifty_move = false;
+        break; //move found, stop checking
+      }
+    }
+  }
+  else
+  {
+    fifty_move = false;
+  }
+
+  if(fifty_move)
+  {
+    game_over = "50-MOVE";
+  }
+
+  //REPETITION
+  //FIX, only some squares get PieceObject, others don't
+  let last_move_data = gameData.history[gameData.history.length-1].data;
+  for(let i = gameData.history.length-3; i >= 0; i -= 2) 
+  {
+    console.log(last_move_data, gameData.history[i].data, gameData.history.length-1, i);
+    if(gameData.history[i].data === last_move_data)
+    {
+      console.log("repetition");
+    }
+  }
+  
+  //CHECKMATE/STALEMATE
   //check if opponent has legal moves
   let turn_now = getAllMoves(gameData, false, opposite(gameData.turn));
   let move_performed = getAllMoves(gameData, false, gameData.turn);
-  let game_over = null;
 
   const board_data = gameData.board_data;
 
@@ -931,11 +970,31 @@ function ChessBoard()
             break;
         }
 
-        let history_obj = {data: copy,start: {x: startX, y: startY}, end: {x: endX, y: endY}, piece: piece, color: playTurn, capture: capture_piece, move: coordToSquare(endY, endX)};
-        setHistory(history => [...history,history_obj]);
+        let history_obj = {data: copy, start: {x: startX, y: startY}, end: {x: endX, y: endY}, piece: piece, color: playTurn, capture: capture_piece, move: coordToSquare(endY, endX)};
+        let new_history = [...history,history_obj];
+        //setHistory(history => [...history,history_obj]);
+        setHistory(new_history);
         setHistoryIndex(history.length);
         setPlayTurn(opposite(playTurn));
         playSound();
+
+        //checks stalemate/checkmate/50-move
+        gameData = {board_data: copy, turn: playTurn, history: new_history};
+        const game_over = isGameOver(gameData);
+        switch (game_over) 
+        {
+          case "CHECKMATE":
+            alert("checkmate");
+            break;
+          case "STALEMATE":
+            alert("stalemate");
+            break;
+          case "50-MOVE":
+            alert("50-move rule");
+            break;
+          default:
+            break;
+        }
       }
       //remove highlights, happens also on illegal move attempt to cancel selection
       for(let i=0; i<legalMoves.current.length; i++)
@@ -954,21 +1013,6 @@ function ChessBoard()
       }
       legalMoves.current = [];
       setBoardArray(copy);
-
-      //checks stalemate/checkmate
-      gameData = {board_data: copy, turn: playTurn, history: history};
-      const game_over = isGameOver(gameData);
-      switch (game_over) 
-      {
-        case "CHECKMATE":
-          alert("checkmate");
-          break;
-        case "STALEMATE":
-          alert("stalemate");
-          break;
-        default:
-          break;
-      }
     }
   }
 
