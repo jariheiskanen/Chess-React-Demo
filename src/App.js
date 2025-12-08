@@ -2,10 +2,11 @@
 TODO:
 - checkmate alert happens before visual move happens, add seperate popup to fix
 - change move history into chess notation
-- implement win/draw conditions: insufficient material, threefold repetition
+- use getAllPieces to show captured material during game
 
 - improve UI
 - add option to promote pawn to other pieces than queen
+- repetition logic improvement
 */
 
 import { useState, useEffect, useRef } from 'react';
@@ -751,7 +752,7 @@ function inCheck(moves)
 }
 
 //checks if game is over by checkmate/stalemate
-function isGameOver(gameData)
+function isGameOver(gameData, simpleHistory)
 {
   let game_over = null;
 
@@ -781,14 +782,58 @@ function isGameOver(gameData)
   }
 
   //REPETITION
-  //FIX, only some squares get PieceObject, others don't
-  let last_move_data = gameData.history[gameData.history.length-1].data;
-  for(let i = gameData.history.length-3; i >= 0; i -= 2) 
+  //currently only checks exactly same positions on board
+  //it is possible for position to be different through repeated discovered checks etc.
+  let repetition = 0;
+  let last_data = JSON.stringify(simpleHistory[simpleHistory.length-1]);
+  for(let i=0; i<simpleHistory.length-1; i++)
   {
-    console.log(last_move_data, gameData.history[i].data, gameData.history.length-1, i);
-    if(gameData.history[i].data === last_move_data)
+    let history_data = JSON.stringify(simpleHistory[i]);
+    if(history_data === last_data)
     {
-      console.log("repetition");
+      repetition++;
+    }
+  }
+  if(repetition === 3)
+  {
+    game_over = "REPETITION";
+  }
+
+  //INSUFFICIENT MATERIAL
+  let own_pieces = getAllPieces(gameData.turn, gameData.board_data);
+  let opponent_pieces = getAllPieces(opposite(gameData.turn), gameData.board_data);
+
+  console.log(own_pieces, opponent_pieces);
+  //no pawns, queen or rook on board
+  if(!(own_pieces.some(piece => ["♟", "♛", "♜"].includes(piece)) || opponent_pieces.some(piece => ["♟", "♛", "♜"].includes(piece))))
+  {
+    let own_length = 0;
+    let own_knights = 0;
+    let opponent_length = 0;
+    for(let i=0; i<own_pieces.length; i++)
+    {
+      if(["♝", "♞"].includes(own_pieces[i]))
+      {
+        own_length++;
+        if(own_pieces[i] === "♞")
+        {
+          own_knights++;
+        }
+      }
+    }
+    for(let i=0; i<opponent_pieces.length; i++)
+    {
+      if(["♝", "♞"].includes(opponent_pieces[i]))
+      {
+        opponent_length++;
+      }
+    }
+
+    //if both sides have 1 or less bishops and knights left, checkmate not possible
+    //if you have 2 knights, checkmate not possible without other opponent pieces
+    if((own_length < 2 && opponent_length < 2) || (own_knights === 2 && opponent_length === 0))
+    {
+      game_over = "INSUFFICIENT";
     }
   }
   
@@ -796,8 +841,6 @@ function isGameOver(gameData)
   //check if opponent has legal moves
   let turn_now = getAllMoves(gameData, false, opposite(gameData.turn));
   let move_performed = getAllMoves(gameData, false, gameData.turn);
-
-  const board_data = gameData.board_data;
 
   //check if king can move
   let kingMoves = 0;
@@ -811,7 +854,7 @@ function isGameOver(gameData)
   if(kingMoves === 0) //if king has moves, it can't be stalemate or checkmate
   {
     //filters pins
-    let filtered_pins = filterPins(turn_now, move_performed, board_data);
+    let filtered_pins = filterPins(turn_now, move_performed, gameData.board_data);
     
     //filters if any piece can block a check
     let filtered_opponent = filterChecks(filtered_pins, move_performed, null);
@@ -830,6 +873,45 @@ function isGameOver(gameData)
     }
   }
   return game_over;
+}
+
+//returns pieces on board for given color
+function getAllPieces(color, board_data)
+{
+  let arr = [];
+  for(let i=0; i<board_data.length; i++)
+  {
+    for(let j=0; j<board_data[i].length; j++)
+    {
+      if(isOccupied(board_data[i][j].piece) && color === board_data[i][j].color)
+      {
+        arr.push(board_data[i][j].piece);
+      }   
+    }
+  }
+  return arr;
+}
+
+//returns array of simplified board state history
+function setSimpleHistory(data)
+{
+  let arr = [];
+  for(let i=0; i<data.length; i++)
+  {
+    for(let j=0; j<data[i].length; j++)
+    {
+      if(isOccupied(data[i][j].piece))
+      {
+        arr.push(data[i][j].piece+"-"+data[i][j].color);      
+      }
+      else
+      {
+        arr.push(null+"-"+null);
+      }      
+    }
+  }
+
+  return arr;
 }
 
 //returns chess square such as A4 from given coordinates
@@ -875,6 +957,7 @@ function ChessBoard()
   let selectedCoordY = useRef(null);
   let selectedCoordX = useRef(null);
   let selectedType = useRef(null);
+  let simpleHistory = useRef([]); //used for repetition checks
 
   let gameData = {board_data: board_array, turn: playTurn, history: history};
 
@@ -972,7 +1055,9 @@ function ChessBoard()
 
         let history_obj = {data: copy, start: {x: startX, y: startY}, end: {x: endX, y: endY}, piece: piece, color: playTurn, capture: capture_piece, move: coordToSquare(endY, endX)};
         let new_history = [...history,history_obj];
-        //setHistory(history => [...history,history_obj]);
+        let simple_move_data = setSimpleHistory(copy);
+
+        simpleHistory.current = [...simpleHistory.current, simple_move_data];
         setHistory(new_history);
         setHistoryIndex(history.length);
         setPlayTurn(opposite(playTurn));
@@ -980,7 +1065,7 @@ function ChessBoard()
 
         //checks stalemate/checkmate/50-move
         gameData = {board_data: copy, turn: playTurn, history: new_history};
-        const game_over = isGameOver(gameData);
+        const game_over = isGameOver(gameData, simpleHistory.current);
         switch (game_over) 
         {
           case "CHECKMATE":
@@ -991,6 +1076,12 @@ function ChessBoard()
             break;
           case "50-MOVE":
             alert("50-move rule");
+            break;
+          case "REPETITION":
+            alert("threefold repetition");
+            break;
+          case "INSUFFICIENT":
+            alert("insufficient material");
             break;
           default:
             break;
