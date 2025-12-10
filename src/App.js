@@ -1,10 +1,11 @@
 /*
 TODO:
-- checkmate alert happens before visual move happens, add seperate popup to fix
+- disable background events at end screen
+- remove reset board button (move functionality to Play Again button)
+- add proper error if trying to perform a move while browsing history
 - change move history into chess notation
 - use getAllPieces to show captured material during game
-
-- improve UI
+- improve UI for move history, use colors from game end screen
 - add option to promote pawn to other pieces than queen
 - repetition logic improvement
 */
@@ -803,7 +804,6 @@ function isGameOver(gameData, simpleHistory)
   let own_pieces = getAllPieces(gameData.turn, gameData.board_data);
   let opponent_pieces = getAllPieces(opposite(gameData.turn), gameData.board_data);
 
-  console.log(own_pieces, opponent_pieces);
   //no pawns, queen or rook on board
   if(!(own_pieces.some(piece => ["♟", "♛", "♜"].includes(piece)) || opponent_pieces.some(piece => ["♟", "♛", "♜"].includes(piece))))
   {
@@ -952,12 +952,14 @@ function ChessBoard()
   const [playTurn, setPlayTurn] = useState("white"); //white/black turn
   const [history, setHistory] = useState([]); //move history
   const [historyIndex, setHistoryIndex] = useState(null); //index for current selected history browsing, updates to latest move by default
+  const [gameOver, setGameOver] = useState(null); //game over message if win/draw
 
   let legalMoves = useRef([]);
   let selectedCoordY = useRef(null);
   let selectedCoordX = useRef(null);
   let selectedType = useRef(null);
   let simpleHistory = useRef([]); //used for repetition checks
+  let gameWinner = useRef(null); //DRAW, WHITE or BLACK
 
   let gameData = {board_data: board_array, turn: playTurn, history: history};
 
@@ -1002,7 +1004,7 @@ function ChessBoard()
     }
     else
     {
-      console.log("go to current move first");
+      alert("go to current move first");
     }
   }
 
@@ -1069,19 +1071,24 @@ function ChessBoard()
         switch (game_over) 
         {
           case "CHECKMATE":
-            alert("checkmate");
+            gameWinner.current = playTurn.charAt(0).toUpperCase() + playTurn.slice(1)+" wins!";
+            setGameOver("CHECKMATE");
             break;
           case "STALEMATE":
-            alert("stalemate");
+            gameWinner.current = "Draw";
+            setGameOver("STALEMATE");
             break;
           case "50-MOVE":
-            alert("50-move rule");
+            gameWinner.current = "Draw";
+            setGameOver("50-MOVE RULE");
             break;
           case "REPETITION":
-            alert("threefold repetition");
+            gameWinner.current = "Draw";
+            setGameOver("THREEFOLD REPETITION");
             break;
           case "INSUFFICIENT":
-            alert("insufficient material");
+            gameWinner.current = "Draw";
+            setGameOver("INSUFFICIENT MATERIAL");
             break;
           default:
             break;
@@ -1158,6 +1165,7 @@ function ChessBoard()
   return(
   <>
   <div className='chess-board'>{board_rows}</div>
+  <PopUp gameStatus={gameOver} gameWinner={gameWinner.current}/>
   <div className='info-panel'>
     <div className="turn-counter">{playTurn+" to move"}</div>
     <MoveHistory history={history} selected={historyIndex} browseHistory={browseHistory}/>
@@ -1165,6 +1173,25 @@ function ChessBoard()
   </div>
   </>
   );
+}
+
+//popup for game end screen
+function PopUp({gameStatus, gameWinner})
+{
+  if(gameStatus === null)
+  {
+    return null;
+  }
+  else
+  {
+    return <div className='end-popup'>
+      <h4>{gameStatus}</h4>
+      <div>
+        <p>{gameWinner}</p>
+        <button className='action-button'>Play again</button>
+      </div>
+    </div>;
+  }  
 }
 
 //right panel move history

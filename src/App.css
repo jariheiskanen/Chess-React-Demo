@@ -7,10 +7,11 @@ body
 #root
 {
   margin-top: 200px;
+  position: relative;
   display: inline-flex;
   justify-content: center;
   flex-wrap: wrap;
-  font-family: "Roboto",Verdana, Geneva, Tahoma, sans-serif;
+  font-family: system-ui, -apple-system, system-ui,"Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 
 .chess-board
@@ -151,8 +152,83 @@ body
 
 .selected
 {
-  /*box-shadow: inset 0 0 0 3px rgba(0, 247, 255, 0.5);*/
-
-  background-color: rgb(153 163 255 / 50%)
+  background-color: rgb(153 163 255 / 50%);
 }
 
+.end-popup
+{
+  width: 280px;
+  position: absolute;
+  background-color: white;
+  z-index: 100;
+  left: 176px;
+  top: 186px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2), 0 4px 6px rgba(0, 0, 0, 0.2);
+}
+
+.end-popup h4
+{
+  letter-spacing: 1px;
+  line-height: 25px;
+  background-color: #98c1e7;
+  color: white;
+  margin: 0;
+  padding: 20px 50px;
+}
+
+.end-popup p 
+{
+  margin: 0;
+}
+
+.end-popup div
+{
+  padding: 20px 50px;
+}
+
+.action-button
+{
+  margin-top: 20px;
+  align-items: center;
+  background-clip: padding-box;
+  background-color: #98c1e7;
+  border: 1px solid transparent;
+  border-radius: .25rem;
+  box-shadow: rgba(0, 0, 0, 0.02) 0 1px 3px 0;
+  box-sizing: border-box;
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 16px;
+  font-weight: 600;
+  justify-content: center;
+  line-height: 1.25;
+  min-height: 3rem;
+  padding: calc(.875rem - 1px) calc(1.5rem - 1px);
+  position: relative;
+  text-decoration: none;
+  transition: all 250ms;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  vertical-align: baseline;
+  width: auto;
+}
+
+.action-button:hover, .action-button:focus 
+{
+  background-color: #fb8332;
+  box-shadow: rgba(0, 0, 0, 0.1) 0 4px 12px;
+}
+
+.action-button:hover 
+{
+  transform: translateY(-1px);
+}
+
+.action-button:active 
+{
+  background-color: #c85000;
+  box-shadow: rgba(0, 0, 0, .06) 0 2px 4px;
+  transform: translateY(0);
+}
