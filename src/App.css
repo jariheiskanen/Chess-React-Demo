@@ -25,48 +25,98 @@ body
 .info-panel
 {
   width: 200px;
-  background-color: #cfcfcf;
+  background-color: #d5d5d5;
   position: relative;
   padding: 20px;
 }
 
 .move-history
 {
-  max-height: 400px;
+  max-height: 363px;
   overflow: auto;
   display: flex;
   flex-wrap: wrap;
   text-align: left;
+  gap: 4%;
 }
 
 .move-log
 {
-  width: 50%;
-  padding: 5px 0px 5px 0px;
+  width: 48%;
+  border: 0;
+  padding: 6px 10px;
+  margin: 2px 0;
+  border-radius: .25rem;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
 }
 
 .move-white
 {
   color: white;
+  background-color: #98c1e7;
+}
+
+.move-white:hover
+{
+  background: #88acce;
+  box-shadow: 0 3px 6px rgba(0,0,0,0.15);
+}
+
+.move-black
+{
+  background-color: white;
+}
+
+.move-black:hover
+{
+  background: #f0f7ff;
+  box-shadow: 0 3px 6px rgba(0,0,0,0.15);
 }
 
 .move-selected
 {
-  background-color: #c6c6c6;
+  background: #4da3ff;
+  color: white;
+  font-weight: bold;
+}
+
+.move-selected:hover
+{
+  background: #4da3ff;
+  box-shadow: none;
+  cursor: default;
 }
 
 .history-buttons
 {
-  margin-top: 20px;
+  position: absolute;
+  bottom: 90px;
+  right: 30px;
+  display: flex;
+  justify-content: space-evenly;
 }
 
 .history-buttons button
 {
-  padding: 6px 12px;
-  margin: 5px;
+  width: 45px;
+  height: 45px;
+  border-radius: .25rem;
+  border: 1px solid #c9c9c9;
+  background: #fafafa;
+  font-size: 18px;
+  cursor: pointer;
+  transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-.reset-board
+.history-buttons button:hover 
+{
+  background: #f0f7ff;
+  box-shadow: 0 3px 6px rgba(0,0,0,0.15);
+}
+
+.forfeit-button.action-button
 {
   position: absolute;
   bottom: 20px;
@@ -215,20 +265,9 @@ body
   width: auto;
 }
 
-.action-button:hover, .action-button:focus 
+.action-button:hover
 {
-  background-color: #fb8332;
-  box-shadow: rgba(0, 0, 0, 0.1) 0 4px 12px;
-}
-
-.action-button:hover 
-{
+  background: #88acce;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
   transform: translateY(-1px);
-}
-
-.action-button:active 
-{
-  background-color: #c85000;
-  box-shadow: rgba(0, 0, 0, .06) 0 2px 4px;
-  transform: translateY(0);
 }

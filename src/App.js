@@ -1,11 +1,11 @@
 /*
 TODO:
-- disable background events at end screen
-- remove reset board button (move functionality to Play Again button)
+- timers for both sides
+- game start screen?
+- drag right click arrows
 - add proper error if trying to perform a move while browsing history
 - change move history into chess notation
 - use getAllPieces to show captured material during game
-- improve UI for move history, use colors from game end screen
 - add option to promote pawn to other pieces than queen
 - repetition logic improvement
 */
@@ -974,7 +974,7 @@ function ChessBoard()
   {
     if(history.length === historyIndex+1 || history.length === 0) //if not browsing history
     {
-      if(playTurn === board_array[index_y][index_x].color)
+      if(playTurn === board_array[index_y][index_x].color && gameWinner.current === null) //correct color and game is not over
       {
         selectedCoordY.current = index_y;
         selectedCoordX.current = index_x;
@@ -1122,6 +1122,11 @@ function ChessBoard()
     selectedCoordY.current = null;
     selectedCoordX.current = null;
     selectedType.current = null;
+    gameWinner.current = null;
+    simpleHistory.current = [];
+
+    setGameOver(null);
+    setHistoryIndex(null);    
     setHistory([]);
     setPlayTurn("white");
   }
@@ -1136,6 +1141,14 @@ function ChessBoard()
       setBoardArray(history_data);
       setHistoryIndex(index);
     }
+  }
+
+  //forfeits game
+  function surrender()
+  {
+    const last_move = history[history.length-1].color;
+    gameWinner.current = last_move.charAt(0).toUpperCase() + last_move.slice(1)+" wins!";
+    setGameOver("FORFEIT");
   }
 
   //generate board dynamically
@@ -1165,18 +1178,18 @@ function ChessBoard()
   return(
   <>
   <div className='chess-board'>{board_rows}</div>
-  <PopUp gameStatus={gameOver} gameWinner={gameWinner.current}/>
+  <PopUp gameStatus={gameOver} gameWinner={gameWinner.current} resetBoard={()=>resetBoard()}/>
   <div className='info-panel'>
     <div className="turn-counter">{playTurn+" to move"}</div>
     <MoveHistory history={history} selected={historyIndex} browseHistory={browseHistory}/>
-    <InitButton resetBoard={()=>resetBoard()}/>
+    <button className='forfeit-button action-button' onClick={()=>surrender()}>Forfeit</button>
   </div>
   </>
   );
 }
 
 //popup for game end screen
-function PopUp({gameStatus, gameWinner})
+function PopUp({gameStatus, gameWinner, resetBoard})
 {
   if(gameStatus === null)
   {
@@ -1188,7 +1201,7 @@ function PopUp({gameStatus, gameWinner})
       <h4>{gameStatus}</h4>
       <div>
         <p>{gameWinner}</p>
-        <button className='action-button'>Play again</button>
+        <button className='action-button' onClick={resetBoard}>Play again</button>
       </div>
     </div>;
   }  
@@ -1197,6 +1210,11 @@ function PopUp({gameStatus, gameWinner})
 //right panel move history
 function MoveHistory({history, selected, browseHistory})
 {
+  const bottomRef = useRef(null); //referencing placeholder div at bottom of move list
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [history]); // runs whenever history updates
+
   let moveHistory = [];
   for(let i=0; i<history.length; i++)
   {
@@ -1216,10 +1234,10 @@ function MoveHistory({history, selected, browseHistory})
 
     moveHistory.push(move);
   }
-  
+  //bottomRef is used as market to scroll to bottom after each move
   return(
     <>
-      <div className='move-history'>{moveHistory}</div>
+      <div className='move-history'>{moveHistory}<div ref={bottomRef} /></div>
       <div className='history-buttons'>
         <button onClick={() => browseHistory(0)}>&lt;&lt;</button>
         <button onClick={() => browseHistory(selected-1)}>&lt;</button>
@@ -1228,12 +1246,6 @@ function MoveHistory({history, selected, browseHistory})
       </div>
     </>
   );
-}
-
-//right panel reset
-function InitButton({resetBoard})
-{
-  return <button className='reset-board' onClick={resetBoard}>Reset Board</button>;
 }
 
 //chess board square
