@@ -1,8 +1,7 @@
 /*
 TODO:
-- timers for both sides
 - game start screen?
-- drag right click arrows
+- drag right click arrows, canvas overlay?
 - add proper error if trying to perform a move while browsing history
 - change move history into chess notation
 - use getAllPieces to show captured material during game
@@ -940,6 +939,18 @@ function isOccupied(piece)
   }
 }
 
+//returns true when it is white turn
+function isWhite(turn)
+{
+  return (turn === "white");
+}
+
+//returns true when it is black turn
+function isBlack(turn)
+{
+  return (turn === "black");
+}
+
 //chess board
 function ChessBoard() 
 {
@@ -1177,15 +1188,68 @@ function ChessBoard()
 
   return(
   <>
-  <div className='chess-board'>{board_rows}</div>
-  <PopUp gameStatus={gameOver} gameWinner={gameWinner.current} resetBoard={()=>resetBoard()}/>
-  <div className='info-panel'>
-    <div className="turn-counter">{playTurn+" to move"}</div>
-    <MoveHistory history={history} selected={historyIndex} browseHistory={browseHistory}/>
-    <button className='forfeit-button action-button' onClick={()=>surrender()}>Forfeit</button>
+  <div className='layout-wrapper'>
+    <Timer gameStarted={history.length > 1} active={isBlack(playTurn)} color='black'/>
+    <div className='board-wrapper'>
+      <div className='chess-board'>{board_rows}</div>
+      <PopUp gameStatus={gameOver} gameWinner={gameWinner.current} resetBoard={()=>resetBoard()}/>
+      <div className='info-panel'>
+        <div className="turn-counter">{playTurn+" to move"}</div>
+        <MoveHistory history={history} selected={historyIndex} browseHistory={browseHistory}/>
+        <button className='forfeit-button action-button' onClick={()=>surrender()}>Forfeit</button>
+      </div>
+    </div>
+    <Timer gameStarted={history.length > 0} active={isWhite(playTurn)} color='white'/>
   </div>
   </>
   );
+}
+
+//timer clock
+function Timer({color, active, gameStarted})
+{
+  const [time, setTime] = useState(0);
+  let format_timer = formatTime(time);
+
+  //timer starts after first move is performed
+  useEffect(() => {
+    let interval = null;
+    if(active && gameStarted) 
+    {
+      // Start timer
+      interval = setInterval(() => {
+        setTime((t) => t + 1);
+      }, 1000);
+    } 
+    else 
+    {
+      // Stop timer when turn ends
+      clearInterval(interval);
+    }
+
+    // Cleanup when component unmounts or isTurnActive changes
+    return () => clearInterval(interval);
+  }, [active, gameStarted]);
+
+  //formats time into MM:SS format
+  function formatTime(seconds)
+  {
+    let minutes = Math.floor(seconds/60);
+    let real_seconds = seconds%60;
+
+    if(minutes < 10)
+    {
+      minutes = "0"+minutes;
+    }
+    if(real_seconds < 10)
+    {
+      real_seconds = "0"+real_seconds;
+    }
+
+    return minutes+":"+real_seconds;
+  }
+
+  return <div className={'turn-timer timer-'+color}>{format_timer}</div>;
 }
 
 //popup for game end screen
