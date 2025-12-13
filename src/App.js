@@ -4,7 +4,6 @@ TODO:
 - drag right click arrows, canvas overlay?
 - add proper error if trying to perform a move while browsing history
 - change move history into chess notation
-- use getAllPieces to show captured material during game
 - add option to promote pawn to other pieces than queen
 - repetition logic improvement
 */
@@ -964,6 +963,8 @@ function ChessBoard()
   const [history, setHistory] = useState([]); //move history
   const [historyIndex, setHistoryIndex] = useState(null); //index for current selected history browsing, updates to latest move by default
   const [gameOver, setGameOver] = useState(null); //game over message if win/draw
+  const [whiteCaptures, setWhiteCaptures] = useState([]); //lost pieces for white
+  const [blackCaptures, setBlackCaptures] = useState([]); //lost pieces for black
 
   let legalMoves = useRef([]);
   let selectedCoordY = useRef(null);
@@ -1075,6 +1076,19 @@ function ChessBoard()
         setHistoryIndex(history.length);
         setPlayTurn(opposite(playTurn));
         playSound();
+
+        //captured pieces
+        if(isOccupied(capture_piece))
+        {
+          if(playTurn === "white")
+          {
+            setBlackCaptures([...blackCaptures, capture_piece]);
+          }
+          else
+          {
+            setWhiteCaptures([...whiteCaptures, capture_piece]);
+          }
+        }
 
         //checks stalemate/checkmate/50-move
         gameData = {board_data: copy, turn: playTurn, history: new_history};
@@ -1189,7 +1203,7 @@ function ChessBoard()
   return(
   <>
   <div className='layout-wrapper'>
-    <Timer gameStarted={history.length > 1} active={isBlack(playTurn)} color='black'/>
+    <VerticalMenu captures={blackCaptures} opponent={whiteCaptures} gameStarted={history.length > 1} active={isBlack(playTurn)} color='black'/>
     <div className='board-wrapper'>
       <div className='chess-board'>{board_rows}</div>
       <PopUp gameStatus={gameOver} gameWinner={gameWinner.current} resetBoard={()=>resetBoard()}/>
@@ -1199,14 +1213,14 @@ function ChessBoard()
         <button className='forfeit-button action-button' onClick={()=>surrender()}>Forfeit</button>
       </div>
     </div>
-    <Timer gameStarted={history.length > 0} active={isWhite(playTurn)} color='white'/>
+    <VerticalMenu captures={whiteCaptures} opponent={blackCaptures} gameStarted={history.length > 0} active={isWhite(playTurn)} color='white'/>
   </div>
   </>
   );
 }
 
-//timer clock
-function Timer({color, active, gameStarted})
+//above and below board
+function VerticalMenu({color, active, gameStarted, captures, opponent})
 {
   const [time, setTime] = useState(0);
   let format_timer = formatTime(time);
@@ -1249,7 +1263,53 @@ function Timer({color, active, gameStarted})
     return minutes+":"+real_seconds;
   }
 
-  return <div className={'turn-timer timer-'+color}>{format_timer}</div>;
+  let lost_self = calcPieceValues(captures);
+  let lost_opponent = calcPieceValues(opponent);
+
+  let total = lost_opponent - lost_self;
+  if(total > 0)
+  {
+    total = "(+"+total+")";
+  }
+  else
+  {
+    total = null;
+  }
+
+  //value of lost pieces
+  function calcPieceValues(array)
+  {
+    let total = 0;
+    for(let i=0; i<array.length; i++)
+    {
+      switch(array[i])
+      {
+        case "♟":
+          total += 1;
+          break;
+        case "♞":
+          total += 3;
+          break;
+        case "♝":
+          total += 3;
+          break;
+        case "♜":
+          total += 5;
+          break;
+        case "♛":
+          total += 9;
+          break;
+        default:
+          break;
+      }
+    }
+    return total;
+  }
+
+  return <div className={'vertical-menu menu-'+color}>
+    <div className={'turn-timer timer-'+color}>{format_timer}</div>
+    <div className={'capture-pieces'}>{captures?.slice().sort().reverse().join("")+" "+(total ?? "")}</div>
+  </div>;
 }
 
 //popup for game end screen

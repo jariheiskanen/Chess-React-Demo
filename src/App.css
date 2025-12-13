@@ -305,3 +305,25 @@ body
 {
   border-radius: 0px 0px .25rem .25rem;
 }
+
+.vertical-menu
+{
+  display: flex;
+}
+
+.menu-black
+{
+  align-items: flex-end;
+}
+
+.menu-white
+{
+  align-items: flex-start;
+}
+
+.capture-pieces
+{
+  display: inline-block;
+  font-size: 18px;
+  color: white;
+}
