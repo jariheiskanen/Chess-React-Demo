@@ -915,8 +915,76 @@ function setSimpleHistory(data)
 //returns chess square such as A4 from given coordinates
 function coordToSquare(coordY, coordX)
 {
-  const files = ["A","B","C","D","E","F","G","H"];
+  const files = ["a","b","c","d","e","f","g","h"];
   return files[coordX]+(coordY+1);
+}
+
+//returns chess notation
+function moveToNotation(piece, capture, start, end, special)
+{
+  //check +
+  //checkmate #
+  //2 identical pieces moving to same square, add file after piece Nbd2 (knight from B-file into d2)
+  //2 identical pieces moving to same square from same rank, add rank N1d2 (2 knights on same file, move from 1st file)
+
+  //piece into corresponding letter
+  let piece_notation = "";
+  switch(piece)
+  {
+    case "♟":
+      piece_notation = "";
+      break;
+    case "♜":
+      piece_notation = "R";
+      break;
+    case "♞":
+      piece_notation = "N";
+      break;
+    case "♝":
+      piece_notation = "B";
+      break;
+    case "♚":
+      piece_notation = "K";
+      break;
+    case "♛":
+      piece_notation = "Q";
+      break;
+    default:
+      break;
+  }
+
+  //capture, usually x indicates capture
+  let capture_notation = "";
+  if(isOccupied(capture))
+  {
+    let extra = "";
+    if(piece === "♟")
+    {
+      extra = coordToSquare(start.y, start.x).charAt(0);
+    }
+    capture_notation = extra+"x";
+  }
+
+  let notation = piece_notation+capture_notation+coordToSquare(end.y, end.x);
+
+  //castling, promotion
+  switch(special)
+  {
+    case "castle_king":
+      notation = "O-O";
+      break;
+    case "castle_queen":
+      notation = "O-O-O";
+      break;
+    case "promotion":
+      notation += "=♛";
+      break;
+    default:
+      break;
+  }
+
+
+  return notation;
 }
 
 //returns true if coordinate is on board
@@ -1041,7 +1109,8 @@ function ChessBoard()
         copy[startY][startX] = new PieceObject(piece_obj); //clear original position
         
         //special move cases
-        switch(legalMoves.current[moveIndex].special) 
+        let special = legalMoves.current[moveIndex].special
+        switch(special)
         {
           case "castle_king":
             piece_obj = {piece: "♜", color: playTurn, hasMoved: true};
@@ -1067,7 +1136,7 @@ function ChessBoard()
             break;
         }
 
-        let history_obj = {data: copy, start: {x: startX, y: startY}, end: {x: endX, y: endY}, piece: piece, color: playTurn, capture: capture_piece, move: coordToSquare(endY, endX)};
+        let history_obj = {data: copy, start: {x: startX, y: startY}, end: {x: endX, y: endY}, piece: piece, color: playTurn, capture: capture_piece, move: coordToSquare(endY, endX), special: special};
         let new_history = [...history,history_obj];
         let simple_move_data = setSimpleHistory(copy);
 
@@ -1354,7 +1423,10 @@ function MoveHistory({history, selected, browseHistory})
     {
       selected_move = "move-selected";
     }
-    let move = <button className={selected_move+" move-log move-"+history[i].color} key={i} onClick={() => browseHistory(i)}>{turn_number+history[i].piece+history[i].move}</button>;
+
+    let notation = moveToNotation(history[i].piece, history[i].capture, history[i].start, history[i].end, history[i].special);
+
+    let move = <button className={selected_move+" move-log move-"+history[i].color} key={i} onClick={() => browseHistory(i)}>{turn_number+notation}</button>;
 
     moveHistory.push(move);
   }
