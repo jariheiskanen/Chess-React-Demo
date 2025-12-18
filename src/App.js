@@ -1,10 +1,12 @@
 /*
 TODO:
+- move notation 
+  - fix, swap logic for files and ranks by moving to main function or looping through whole history
 - game start screen?
 - drag right click arrows, canvas overlay?
 - add proper error if trying to perform a move while browsing history
-- change move history into chess notation
 - add option to promote pawn to other pieces than queen
+  - also edit move notation in that case
 - repetition logic improvement
 */
 
@@ -920,12 +922,17 @@ function coordToSquare(coordY, coordX)
 }
 
 //returns chess notation
-function moveToNotation(piece, capture, start, end, special)
+function moveToNotation(history)
 {
-  //check +
-  //checkmate #
-  //2 identical pieces moving to same square, add file after piece Nbd2 (knight from B-file into d2)
-  //2 identical pieces moving to same square from same rank, add rank N1d2 (2 knights on same file, move from 1st file)
+  const piece = history.piece;
+  //const color = history.color;
+  const capture = history.capture;
+  const start = history.start;
+  const end = history.end;
+  const special = history.special;
+  const check = history.check;
+  const checkmate = history.checkmate;
+  const identical = history.identical;
 
   //piece into corresponding letter
   let piece_notation = "";
@@ -953,6 +960,40 @@ function moveToNotation(piece, capture, start, end, special)
       break;
   }
 
+  //identical piece targeting same square
+  let identical_notation = "";
+  let identical_file = false;
+  let identical_rank = false;
+  identical.forEach(coord => {
+    if(coord.x === start.x) //on same file (x)
+    {
+      identical_file = true;
+      if(coord.y === start.y) //on same rank (y)
+      {
+        identical_rank = true;
+      }
+    }
+  });
+  if(identical_file) //pieces share same file, use number
+  {
+    if(identical_rank) //pieces share same file and rank, use both
+    {
+      identical_notation = coordToSquare(start.y, start.x);
+    }
+    else
+    {
+      identical_notation = coordToSquare(start.y, start.x).charAt(1);
+    }
+  }
+  else //pieces are on different files, use letter
+  {
+    if(identical.length > 0)
+    {
+      identical_notation = coordToSquare(start.y, start.x).charAt(0);
+    }    
+  }
+
+
   //capture, usually x indicates capture
   let capture_notation = "";
   if(isOccupied(capture))
@@ -965,7 +1006,10 @@ function moveToNotation(piece, capture, start, end, special)
     capture_notation = extra+"x";
   }
 
-  let notation = piece_notation+capture_notation+coordToSquare(end.y, end.x);
+  //check/checkmate, only add + for check if not in checkmate
+  const check_status = checkmate ? "#" : check ? "+" : "";
+
+  let notation = piece_notation+identical_notation+capture_notation+coordToSquare(end.y, end.x)+check_status;
 
   //castling, promotion
   switch(special)
@@ -982,7 +1026,6 @@ function moveToNotation(piece, capture, start, end, special)
     default:
       break;
   }
-
 
   return notation;
 }
@@ -1088,6 +1131,7 @@ function ChessBoard()
     }
   }
 
+  //click end for piece movement
   function clickEnd(endY, endX)
   {
     const startY = selectedCoordY.current;
@@ -1136,16 +1180,6 @@ function ChessBoard()
             break;
         }
 
-        let history_obj = {data: copy, start: {x: startX, y: startY}, end: {x: endX, y: endY}, piece: piece, color: playTurn, capture: capture_piece, move: coordToSquare(endY, endX), special: special};
-        let new_history = [...history,history_obj];
-        let simple_move_data = setSimpleHistory(copy);
-
-        simpleHistory.current = [...simpleHistory.current, simple_move_data];
-        setHistory(new_history);
-        setHistoryIndex(history.length);
-        setPlayTurn(opposite(playTurn));
-        playSound();
-
         //captured pieces
         if(isOccupied(capture_piece))
         {
@@ -1159,12 +1193,16 @@ function ChessBoard()
           }
         }
 
-        //checks stalemate/checkmate/50-move
+        let history_obj = {data: copy, start: {x: startX, y: startY}, end: {x: endX, y: endY}, piece: piece, color: playTurn, capture: capture_piece, move: coordToSquare(endY, endX), special: special, checkmate: false, check: false, identical: []};
+        let new_history = [...history,history_obj];
+
+        //checks game ending conditions
         gameData = {board_data: copy, turn: playTurn, history: new_history};
         const game_over = isGameOver(gameData, simpleHistory.current);
         switch (game_over) 
         {
           case "CHECKMATE":
+            new_history[new_history.length-1].checkmate = true; //mark last move as checkmate for notation
             gameWinner.current = playTurn.charAt(0).toUpperCase() + playTurn.slice(1)+" wins!";
             setGameOver("CHECKMATE");
             break;
@@ -1187,6 +1225,47 @@ function ChessBoard()
           default:
             break;
         }
+
+        //update history
+        let opponentMoves = getAllMoves(gameData, false, playTurn);
+        let history_check = inCheck(opponentMoves);
+        new_history[new_history.length-1].check = history_check; //mark last move as check for notation
+
+        //find identical piece that can move to same square, bishop and queen can happen after promotion
+        if(["♜", "♞", "♝", "♛"].includes(piece))
+        {
+          let identical_arr = [];
+          //loop through data to find identical piece
+          for(let i=0; i<board_array.length; i++)
+          {
+            for(let j=0; j<board_array[i].length; j++)
+            {
+              if(board_array[i][j].piece === piece && board_array[i][j].color === playTurn && !(i === endY && j === endX)) //piece that is not the moving piece
+              {
+                //found identical piece, find all moves
+                getLegalMoves(i, j, piece, false, gameData, playTurn).forEach(move => 
+                {
+                  if(move.x === endX && move.y === endY)
+                  {
+                    console.log(move);
+                    let identical = {x: j, y: i};
+                    identical_arr.push(identical);
+                  }
+                });
+              }
+            }
+          }
+          new_history[new_history.length-1].identical = identical_arr;
+        }
+
+        let simple_move_data = setSimpleHistory(copy);
+        simpleHistory.current = [...simpleHistory.current, simple_move_data];
+
+        setHistory(new_history);
+        setHistoryIndex(history.length);
+        
+        setPlayTurn(opposite(playTurn));
+        playSound();
       }
       //remove highlights, happens also on illegal move attempt to cancel selection
       for(let i=0; i<legalMoves.current.length; i++)
@@ -1424,7 +1503,7 @@ function MoveHistory({history, selected, browseHistory})
       selected_move = "move-selected";
     }
 
-    let notation = moveToNotation(history[i].piece, history[i].capture, history[i].start, history[i].end, history[i].special);
+    let notation = moveToNotation(history[i]);
 
     let move = <button className={selected_move+" move-log move-"+history[i].color} key={i} onClick={() => browseHistory(i)}>{turn_number+notation}</button>;
 
