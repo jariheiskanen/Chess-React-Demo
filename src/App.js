@@ -1,8 +1,11 @@
 /*
 TODO:
-- move notation 
-  - fix, swap logic for files and ranks by moving to main function or looping through whole history
 - game start screen?
+  - timer setting
+  - white/black?
+  - AI opponent?
+  - Start game button
+- check component optimization (log when each component with functions triggers on re-render)
 - drag right click arrows, canvas overlay?
 - add proper error if trying to perform a move while browsing history
 - add option to promote pawn to other pieces than queen
@@ -964,7 +967,9 @@ function moveToNotation(history)
   let identical_notation = "";
   let identical_file = false;
   let identical_rank = false;
-  identical.forEach(coord => {
+
+  identical.forEach(coord => 
+  {
     if(coord.x === start.x) //on same file (x)
     {
       identical_file = true;
@@ -974,6 +979,7 @@ function moveToNotation(history)
       }
     }
   });
+
   if(identical_file) //pieces share same file, use number
   {
     if(identical_rank) //pieces share same file and rank, use both
@@ -993,8 +999,7 @@ function moveToNotation(history)
     }    
   }
 
-
-  //capture, usually x indicates capture
+  //capture, x indicates capture
   let capture_notation = "";
   if(isOccupied(capture))
   {
@@ -1193,7 +1198,7 @@ function ChessBoard()
           }
         }
 
-        let history_obj = {data: copy, start: {x: startX, y: startY}, end: {x: endX, y: endY}, piece: piece, color: playTurn, capture: capture_piece, move: coordToSquare(endY, endX), special: special, checkmate: false, check: false, identical: []};
+        let history_obj = {data: copy, start: {x: startX, y: startY}, end: {x: endX, y: endY}, piece: piece, color: playTurn, capture: capture_piece, special: special, checkmate: false, check: false, identical: [], notation: ""};
         let new_history = [...history,history_obj];
 
         //checks game ending conditions
@@ -1240,14 +1245,14 @@ function ChessBoard()
           {
             for(let j=0; j<board_array[i].length; j++)
             {
-              if(board_array[i][j].piece === piece && board_array[i][j].color === playTurn && !(i === endY && j === endX)) //piece that is not the moving piece
+              if(board_array[i][j].piece === piece && board_array[i][j].color === playTurn && !(i === startY && j === startX)) //piece that is not the moving piece
               {
                 //found identical piece, find all moves
-                getLegalMoves(i, j, piece, false, gameData, playTurn).forEach(move => 
+                getLegalMoves(i, j, piece, false, {board_data: board_array, turn: playTurn, history: new_history}, playTurn).forEach(move => 
                 {
+                  //if identical piece can move to same square
                   if(move.x === endX && move.y === endY)
                   {
-                    console.log(move);
                     let identical = {x: j, y: i};
                     identical_arr.push(identical);
                   }
@@ -1257,7 +1262,9 @@ function ChessBoard()
           }
           new_history[new_history.length-1].identical = identical_arr;
         }
+        new_history[new_history.length-1].notation = moveToNotation(new_history[new_history.length-1]);
 
+        //set history values
         let simple_move_data = setSimpleHistory(copy);
         simpleHistory.current = [...simpleHistory.current, simple_move_data];
 
@@ -1503,9 +1510,7 @@ function MoveHistory({history, selected, browseHistory})
       selected_move = "move-selected";
     }
 
-    let notation = moveToNotation(history[i]);
-
-    let move = <button className={selected_move+" move-log move-"+history[i].color} key={i} onClick={() => browseHistory(i)}>{turn_number+notation}</button>;
+    let move = <button className={selected_move+" move-log move-"+history[i].color} key={i} onClick={() => browseHistory(i)}>{turn_number+history[i].notation}</button>;
 
     moveHistory.push(move);
   }
