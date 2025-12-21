@@ -224,7 +224,7 @@ body
   position: absolute;
   background-color: white;
   z-index: 100;
-  left: 176px;
+  left: 141px;
   top: 186px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2), 0 4px 6px rgba(0, 0, 0, 0.2);
 }
@@ -251,6 +251,7 @@ body
 
 .action-button
 {
+  min-width: 85px;
   margin-top: 20px;
   align-items: center;
   background-clip: padding-box;

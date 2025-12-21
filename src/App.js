@@ -1,10 +1,11 @@
 /*
 TODO:
 - game start screen?
-  - timer setting
   - white/black?
   - AI opponent?
-  - Start game button
+  - timer re-renders whole main component
+  - timer only shows full seconds
+  - fix layout spacing
 - check component optimization (log when each component with functions triggers on re-render)
 - drag right click arrows, canvas overlay?
 - add proper error if trying to perform a move while browsing history
@@ -1035,6 +1036,24 @@ function moveToNotation(history)
   return notation;
 }
 
+//formats time into MM:SS format
+function formatTime(seconds)
+{
+  let minutes = Math.floor(seconds/60);
+  let real_seconds = seconds%60;
+
+  if(minutes < 10)
+  {
+    minutes = "0"+minutes;
+  }
+  if(real_seconds < 10)
+  {
+    real_seconds = "0"+real_seconds;
+  }
+
+  return minutes+":"+real_seconds;
+}
+
 //returns true if coordinate is on board
 function isInBounds(x, y) 
 {
@@ -1054,18 +1073,6 @@ function isOccupied(piece)
   }
 }
 
-//returns true when it is white turn
-function isWhite(turn)
-{
-  return (turn === "white");
-}
-
-//returns true when it is black turn
-function isBlack(turn)
-{
-  return (turn === "black");
-}
-
 //chess board
 function ChessBoard() 
 {
@@ -1081,6 +1088,8 @@ function ChessBoard()
   const [gameOver, setGameOver] = useState(null); //game over message if win/draw
   const [whiteCaptures, setWhiteCaptures] = useState([]); //lost pieces for white
   const [blackCaptures, setBlackCaptures] = useState([]); //lost pieces for black
+  const [timerWhite, setTimerWhite] = useState(999); //default timer for white
+  const [timerBlack, setTimerBlack] = useState(999); //default timer for black
 
   let legalMoves = useRef([]);
   let selectedCoordY = useRef(null);
@@ -1088,6 +1097,8 @@ function ChessBoard()
   let selectedType = useRef(null);
   let simpleHistory = useRef([]); //used for repetition checks
   let gameWinner = useRef(null); //DRAW, WHITE or BLACK
+  let gameInit = useRef(false); //true when timer and color has been selected
+  let hasMoved = useRef({white: false, black: false}); //checks if each side has started their timer
 
   let gameData = {board_data: board_array, turn: playTurn, history: history};
 
@@ -1096,6 +1107,36 @@ function ChessBoard()
     initBoard(setBoardArray);
     //eslint-disable-next-line
   },[]);
+
+  //timer starts after first move is performed
+  useEffect(() => {
+    if (!gameInit.current) return;
+    if (!hasMoved.current[playTurn]) return;
+    if (gameOver !== null) return;
+
+    const interval = setInterval(() => {
+      //decrease timer, prev has previous state
+      const activeSetter = playTurn === "white" ? setTimerWhite : setTimerBlack;
+      activeSetter((prev) => Math.max(prev - 1, 0));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [playTurn, gameOver]);
+
+  //checks for timeout
+  useEffect(() => 
+  {
+    if(timerWhite === 0)
+    {
+      setGameOver("TIMEOUT");
+      gameWinner.current = "Black wins";
+    }
+    if(timerBlack === 0)
+    {
+      setGameOver("TIMEOUT");
+      gameWinner.current = "White wins";
+    }
+  }, [timerWhite, timerBlack]);
 
   //calculate and highlight legal moves
   function ClickPiece(index_y, index_x)
@@ -1156,6 +1197,15 @@ function ChessBoard()
         copy[endY][endX] = new PieceObject(piece_obj);//move piece
         piece_obj = {piece: null};
         copy[startY][startX] = new PieceObject(piece_obj); //clear original position
+        
+        if(history.length === 0)
+        {
+          hasMoved.current.white = true;
+        }
+        if(history.length === 1)
+        {
+          hasMoved.current.black = true;
+        }
         
         //special move cases
         let special = legalMoves.current[moveIndex].special
@@ -1331,6 +1381,23 @@ function ChessBoard()
     setGameOver("FORFEIT");
   }
 
+  //sets timers
+  function setTimer(seconds)
+  {
+    //temporary infinite timer, disable timers
+    if(seconds === null)
+    {
+      setTimerWhite(9999);
+      setTimerBlack(9999);
+    }
+    else
+    {
+      setTimerWhite(seconds);
+      setTimerBlack(seconds);
+    }
+    gameInit.current = true;
+  }
+
   //generate board dynamically
   let board_rows = [];
   for(let y=7; y>=0; y--)
@@ -1358,9 +1425,10 @@ function ChessBoard()
   return(
   <>
   <div className='layout-wrapper'>
-    <VerticalMenu captures={blackCaptures} opponent={whiteCaptures} gameStarted={history.length > 1} active={isBlack(playTurn)} color='black'/>
+    <VerticalMenu timer={formatTime(timerBlack)} captures={blackCaptures} opponent={whiteCaptures} color='black'/>
     <div className='board-wrapper'>
       <div className='chess-board'>{board_rows}</div>
+      <StartScreen gameInit={gameInit.current} onSetTimer={setTimer}/>
       <PopUp gameStatus={gameOver} gameWinner={gameWinner.current} resetBoard={()=>resetBoard()}/>
       <div className='info-panel'>
         <div className="turn-counter">{playTurn+" to move"}</div>
@@ -1368,56 +1436,38 @@ function ChessBoard()
         <button className='forfeit-button action-button' onClick={()=>surrender()}>Forfeit</button>
       </div>
     </div>
-    <VerticalMenu captures={whiteCaptures} opponent={blackCaptures} gameStarted={history.length > 0} active={isWhite(playTurn)} color='white'/>
+    <VerticalMenu timer={formatTime(timerWhite)} captures={whiteCaptures} opponent={blackCaptures} color='white'/>    
   </div>
   </>
   );
 }
 
-//above and below board
-function VerticalMenu({color, active, gameStarted, captures, opponent})
+//start screen popup
+function StartScreen({onSetTimer, gameInit})
 {
-  const [time, setTime] = useState(0);
-  let format_timer = formatTime(time);
-
-  //timer starts after first move is performed
-  useEffect(() => {
-    let interval = null;
-    if(active && gameStarted) 
-    {
-      // Start timer
-      interval = setInterval(() => {
-        setTime((t) => t + 1);
-      }, 1000);
-    } 
-    else 
-    {
-      // Stop timer when turn ends
-      clearInterval(interval);
-    }
-
-    // Cleanup when component unmounts or isTurnActive changes
-    return () => clearInterval(interval);
-  }, [active, gameStarted]);
-
-  //formats time into MM:SS format
-  function formatTime(seconds)
+  if(gameInit)
   {
-    let minutes = Math.floor(seconds/60);
-    let real_seconds = seconds%60;
-
-    if(minutes < 10)
-    {
-      minutes = "0"+minutes;
-    }
-    if(real_seconds < 10)
-    {
-      real_seconds = "0"+real_seconds;
-    }
-
-    return minutes+":"+real_seconds;
+    return null;
   }
+  else
+  {
+    return <div className='end-popup'>
+      <h4>Start game</h4>
+      <div>
+        <p>Pick a side</p>
+        <button className='action-button' onClick={() => onSetTimer(600)}>10+0</button>
+        <button className='action-button' onClick={() => onSetTimer(180)}>3+0</button>
+        <button className='action-button' onClick={() => onSetTimer(60)}>1+0</button>
+        <button className='action-button' onClick={() => onSetTimer(null)}>∞</button>
+      </div>
+    </div>;
+  }
+  
+}
 
+//above and below board
+function VerticalMenu({color, captures, opponent, timer})
+{
   let lost_self = calcPieceValues(captures);
   let lost_opponent = calcPieceValues(opponent);
 
@@ -1462,7 +1512,7 @@ function VerticalMenu({color, active, gameStarted, captures, opponent})
   }
 
   return <div className={'vertical-menu menu-'+color}>
-    <div className={'turn-timer timer-'+color}>{format_timer}</div>
+    <div className={'turn-timer timer-'+color}>{timer}</div>
     <div className={'capture-pieces'}>{captures?.slice().sort().reverse().join("")+" "+(total ?? "")}</div>
   </div>;
 }
