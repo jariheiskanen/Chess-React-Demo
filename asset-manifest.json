@@ -1,17 +1,17 @@
 {
   "files": {
-    "main.css": "/Chess-React-Demo/static/css/main.e4379d3f.css",
-    "main.js": "/Chess-React-Demo/static/js/main.989e2da9.js",
+    "main.css": "/Chess-React-Demo/static/css/main.1cc84a2f.css",
+    "main.js": "/Chess-React-Demo/static/js/main.aca75456.js",
     "static/js/885.1ff39097.chunk.js": "/Chess-React-Demo/static/js/885.1ff39097.chunk.js",
     "static/media/chess-move.mp3": "/Chess-React-Demo/static/media/chess-move.fd7249370ebe8e586158.mp3",
     "static/media/error-in-check.mp3": "/Chess-React-Demo/static/media/error-in-check.f355f97559a848781570.mp3",
     "index.html": "/Chess-React-Demo/index.html",
-    "main.e4379d3f.css.map": "/Chess-React-Demo/static/css/main.e4379d3f.css.map",
-    "main.989e2da9.js.map": "/Chess-React-Demo/static/js/main.989e2da9.js.map",
+    "main.1cc84a2f.css.map": "/Chess-React-Demo/static/css/main.1cc84a2f.css.map",
+    "main.aca75456.js.map": "/Chess-React-Demo/static/js/main.aca75456.js.map",
     "885.1ff39097.chunk.js.map": "/Chess-React-Demo/static/js/885.1ff39097.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.e4379d3f.css",
-    "static/js/main.989e2da9.js"
+    "static/css/main.1cc84a2f.css",
+    "static/js/main.aca75456.js"
   ]
 }
