@@ -2,10 +2,13 @@
 TODO:
 - game start screen?
   - white/black?
+    > flip chess-board and piece class, also timers need to be swapped
   - AI opponent?
   - timer re-renders whole main component
-  - timer only shows full seconds
+  - timer only shows full seconds+
   - fix layout spacing
+  - change infinite timer to not tick down/show time
+- reuse game start and game end screen components
 - check component optimization (log when each component with functions triggers on re-render)
 - drag right click arrows, canvas overlay?
 - add proper error if trying to perform a move while browsing history
@@ -1039,19 +1042,27 @@ function moveToNotation(history)
 //formats time into MM:SS format
 function formatTime(seconds)
 {
-  let minutes = Math.floor(seconds/60);
-  let real_seconds = seconds%60;
-
-  if(minutes < 10)
+  if(seconds === 9999)
   {
-    minutes = "0"+minutes;
+    return "--:--";
   }
-  if(real_seconds < 10)
+  else
   {
-    real_seconds = "0"+real_seconds;
+    let minutes = Math.floor(seconds/60);
+    let real_seconds = seconds%60;
+
+    if(minutes < 10)
+    {
+      minutes = "0"+minutes;
+    }
+    if(real_seconds < 10)
+    {
+      real_seconds = "0"+real_seconds;
+    }
+
+    return minutes+":"+real_seconds;
   }
 
-  return minutes+":"+real_seconds;
 }
 
 //returns true if coordinate is on board
@@ -1088,8 +1099,8 @@ function ChessBoard()
   const [gameOver, setGameOver] = useState(null); //game over message if win/draw
   const [whiteCaptures, setWhiteCaptures] = useState([]); //lost pieces for white
   const [blackCaptures, setBlackCaptures] = useState([]); //lost pieces for black
-  const [timerWhite, setTimerWhite] = useState(999); //default timer for white
-  const [timerBlack, setTimerBlack] = useState(999); //default timer for black
+  const [timerWhite, setTimerWhite] = useState(null); //timer for white
+  const [timerBlack, setTimerBlack] = useState(null); //timer for black
 
   let legalMoves = useRef([]);
   let selectedCoordY = useRef(null);
@@ -1113,6 +1124,7 @@ function ChessBoard()
     if (!gameInit.current) return;
     if (!hasMoved.current[playTurn]) return;
     if (gameOver !== null) return;
+    if (timerWhite === 9999) return; //infinite timer
 
     const interval = setInterval(() => {
       //decrease timer, prev has previous state
@@ -1121,7 +1133,7 @@ function ChessBoard()
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [playTurn, gameOver]);
+  }, [playTurn, gameOver, timerWhite]);
 
   //checks for timeout
   useEffect(() => 
@@ -1394,7 +1406,7 @@ function ChessBoard()
     {
       setTimerWhite(seconds);
       setTimerBlack(seconds);
-    }
+    } 
     gameInit.current = true;
   }
 
