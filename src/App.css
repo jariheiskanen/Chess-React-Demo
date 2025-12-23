@@ -332,3 +332,21 @@ body
   font-size: 18px;
   color: white;
 }
+
+.timer-selection
+{
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.timer-selection button
+{
+  margin: 0;
+}
+
+.reverse-true
+{
+  transform: rotate(180deg);
+}

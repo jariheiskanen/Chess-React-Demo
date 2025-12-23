@@ -1,13 +1,10 @@
 /*
 TODO:
 - game start screen?
-  - white/black?
-    > flip chess-board and piece class, also timers need to be swapped
   - AI opponent?
   - timer re-renders whole main component
   - timer only shows full seconds+
-  - fix layout spacing
-  - change infinite timer to not tick down/show time
+- show start screen again if pressed "Play Again" at end screen
 - reuse game start and game end screen components
 - check component optimization (log when each component with functions triggers on re-render)
 - drag right click arrows, canvas overlay?
@@ -1110,6 +1107,7 @@ function ChessBoard()
   let gameWinner = useRef(null); //DRAW, WHITE or BLACK
   let gameInit = useRef(false); //true when timer and color has been selected
   let hasMoved = useRef({white: false, black: false}); //checks if each side has started their timer
+  let reverseBoard = useRef(false); //flip board if playing black
 
   let gameData = {board_data: board_array, turn: playTurn, history: history};
 
@@ -1155,7 +1153,7 @@ function ChessBoard()
   {
     if(history.length === historyIndex+1 || history.length === 0) //if not browsing history
     {
-      if(playTurn === board_array[index_y][index_x].color && gameWinner.current === null) //correct color and game is not over
+      if(playTurn === board_array[index_y][index_x].color && gameWinner.current === null && gameInit.current === true) //correct color,game is not over and timer has been selected
       {
         selectedCoordY.current = index_y;
         selectedCoordX.current = index_x;
@@ -1408,6 +1406,7 @@ function ChessBoard()
       setTimerBlack(seconds);
     } 
     gameInit.current = true;
+    reverseBoard.current = document.querySelector('input[name="pieceColor"]:checked').value === "black" ? true : false;
   }
 
   //generate board dynamically
@@ -1431,15 +1430,15 @@ function ChessBoard()
 
       row_arr.push(<Square key={y+x} x_coord={alphabet} y_coord={number} css={board_array[y][x].cssClass} piececolor={board_array[y][x].color} state={board_array[y][x].piece} endSquare={()=>clickEnd(y,x)} movePiece={()=>ClickPiece(y,x)}/>);
     }
-    board_rows.push(<div key={y} className={'board-row row-'+y}>{row_arr}</div>);
+    board_rows.push(<div key={y} className={'board-row row-'+y+' reverse-'+reverseBoard.current}>{row_arr}</div>);
   }
 
   return(
   <>
   <div className='layout-wrapper'>
-    <VerticalMenu timer={formatTime(timerBlack)} captures={blackCaptures} opponent={whiteCaptures} color='black'/>
+    <VerticalMenu timer={reverseBoard.current ? formatTime(timerWhite) : formatTime(timerBlack)} captures={blackCaptures} opponent={whiteCaptures} color='black'/>
     <div className='board-wrapper'>
-      <div className='chess-board'>{board_rows}</div>
+      <div className={'chess-board reverse-'+reverseBoard.current}>{board_rows}</div>
       <StartScreen gameInit={gameInit.current} onSetTimer={setTimer}/>
       <PopUp gameStatus={gameOver} gameWinner={gameWinner.current} resetBoard={()=>resetBoard()}/>
       <div className='info-panel'>
@@ -1448,7 +1447,7 @@ function ChessBoard()
         <button className='forfeit-button action-button' onClick={()=>surrender()}>Forfeit</button>
       </div>
     </div>
-    <VerticalMenu timer={formatTime(timerWhite)} captures={whiteCaptures} opponent={blackCaptures} color='white'/>    
+    <VerticalMenu timer={reverseBoard.current ? formatTime(timerBlack) : formatTime(timerWhite)} captures={whiteCaptures} opponent={blackCaptures} color='white'/>    
   </div>
   </>
   );
@@ -1466,7 +1465,18 @@ function StartScreen({onSetTimer, gameInit})
     return <div className='end-popup'>
       <h4>Start game</h4>
       <div>
-        <p>Pick a side</p>
+        <form>
+          <label>
+            <input type="radio" name="pieceColor" value="white" defaultChecked />
+            ♔ White
+          </label>
+          <label>
+            <input type="radio" name="pieceColor" value="black" />
+            ♚ Black
+          </label>
+        </form>
+      </div>
+      <div className='timer-selection'>
         <button className='action-button' onClick={() => onSetTimer(600)}>10+0</button>
         <button className='action-button' onClick={() => onSetTimer(180)}>3+0</button>
         <button className='action-button' onClick={() => onSetTimer(60)}>1+0</button>
