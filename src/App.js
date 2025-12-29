@@ -4,7 +4,6 @@ TODO:
   - AI opponent?
   - timer re-renders whole main component
   - timer only shows full seconds+
-- show start screen again if pressed "Play Again" at end screen
 - reuse game start and game end screen components
 - check component optimization (log when each component with functions triggers on re-render)
 - drag right click arrows, canvas overlay?
@@ -1354,7 +1353,7 @@ function ChessBoard()
     }
   }
 
-  //reset board from right panel button
+  //reset board from "Play Again" button
   function resetBoard()
   {
     initBoard(setBoardArray);
@@ -1364,11 +1363,18 @@ function ChessBoard()
     selectedType.current = null;
     gameWinner.current = null;
     simpleHistory.current = [];
+    gameInit.current = false;
+    hasMoved.current = {white: false, black: false};
+    reverseBoard.current = false;
 
     setGameOver(null);
     setHistoryIndex(null);    
     setHistory([]);
     setPlayTurn("white");
+    setWhiteCaptures([]);
+    setBlackCaptures([]);
+    setTimerWhite(null);
+    setTimerBlack(null);
   }
 
   //click event on right side history panel
@@ -1386,15 +1392,24 @@ function ChessBoard()
   //forfeits game
   function surrender()
   {
-    const last_move = history[history.length-1].color;
-    gameWinner.current = last_move.charAt(0).toUpperCase() + last_move.slice(1)+" wins!";
-    setGameOver("FORFEIT");
+    if(history.length > 0)
+    {
+      const last_move = history[history.length-1].color;
+      gameWinner.current = last_move.charAt(0).toUpperCase() + last_move.slice(1)+" wins!";
+      setGameOver("FORFEIT");
+    }
+    else //abort game before first move is played
+    {
+      gameWinner.current = "Game aborted";
+      setGameOver("ABORT");
+    }
+ 
   }
 
   //sets timers
   function setTimer(seconds)
   {
-    //temporary infinite timer, disable timers
+    //infinite timer sets time to 9999
     if(seconds === null)
     {
       setTimerWhite(9999);
@@ -1406,7 +1421,7 @@ function ChessBoard()
       setTimerBlack(seconds);
     } 
     gameInit.current = true;
-    reverseBoard.current = document.querySelector('input[name="pieceColor"]:checked').value === "black" ? true : false;
+    reverseBoard.current = document.querySelector('input[name="pieceColor"]:checked').value === "black" ? true : false; //white or black
   }
 
   //generate board dynamically
