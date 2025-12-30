@@ -3,13 +3,14 @@ TODO:
 - game start screen?
   - AI opponent?
   - timer re-renders whole main component
-  - timer only shows full seconds+
-- reuse game start and game end screen components
+  - timer only shows full seconds and consumes time after whole second has passed
+- reuse game start and game end screen components?
 - check component optimization (log when each component with functions triggers on re-render)
 - drag right click arrows, canvas overlay?
 - add proper error if trying to perform a move while browsing history
 - add option to promote pawn to other pieces than queen
   - also edit move notation in that case
+  - start done, figure out how to pause main loop execution until piece is selected
 - repetition logic improvement
 */
 
@@ -1107,6 +1108,7 @@ function ChessBoard()
   let gameInit = useRef(false); //true when timer and color has been selected
   let hasMoved = useRef({white: false, black: false}); //checks if each side has started their timer
   let reverseBoard = useRef(false); //flip board if playing black
+  let promotionMenu = useRef(false); //shows promotion piece menu when true
 
   let gameData = {board_data: board_array, turn: playTurn, history: history};
 
@@ -1237,6 +1239,7 @@ function ChessBoard()
             copy[startY][endX] = new PieceObject(piece_obj); //clear pawn being captured
             break;
           case "promotion":
+            promotionMenu.current = true;
             piece_obj = {piece: "♛", color: playTurn, hasMoved: true};
             copy[endY][endX] = new PieceObject(piece_obj);//turn pawn into queen
             break;
@@ -1454,18 +1457,36 @@ function ChessBoard()
     <VerticalMenu timer={reverseBoard.current ? formatTime(timerWhite) : formatTime(timerBlack)} captures={blackCaptures} opponent={whiteCaptures} color='black'/>
     <div className='board-wrapper'>
       <div className={'chess-board reverse-'+reverseBoard.current}>{board_rows}</div>
-      <StartScreen gameInit={gameInit.current} onSetTimer={setTimer}/>
-      <PopUp gameStatus={gameOver} gameWinner={gameWinner.current} resetBoard={()=>resetBoard()}/>
       <div className='info-panel'>
         <div className="turn-counter">{playTurn+" to move"}</div>
         <MoveHistory history={history} selected={historyIndex} browseHistory={browseHistory}/>
         <button className='forfeit-button action-button' onClick={()=>surrender()}>Forfeit</button>
       </div>
+      <StartScreen gameInit={gameInit.current} onSetTimer={setTimer}/>
+      <PopUp gameStatus={gameOver} gameWinner={gameWinner.current} resetBoard={()=>resetBoard()}/>
+      <PromotionMenu promotion={promotionMenu.current}/>
     </div>
     <VerticalMenu timer={reverseBoard.current ? formatTime(timerBlack) : formatTime(timerWhite)} captures={whiteCaptures} opponent={blackCaptures} color='white'/>    
   </div>
   </>
   );
+}
+
+function PromotionMenu({promotion})
+{
+  if(promotion)
+  {
+   return <div className='promote-menu'>
+      <div className='promote-piece'>♜</div>
+      <div className='promote-piece'>♞</div>
+      <div className='promote-piece'>♝</div>
+      <div className='promote-piece'>♛</div>
+    </div>;
+  }
+  else
+  {
+    return null;
+  }  
 }
 
 //start screen popup
