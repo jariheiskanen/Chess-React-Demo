@@ -9,8 +9,9 @@ TODO:
 - drag right click arrows, canvas overlay?
 - add proper error if trying to perform a move while browsing history
 - add option to promote pawn to other pieces than queen
-  - also edit move notation in that case
-  - start done, figure out how to pause main loop execution until piece is selected
+  - edit move notation
+  - test different promotion cases
+  - visual changes on hover and location of promotion menu
 - repetition logic improvement
 */
 
@@ -225,7 +226,7 @@ function kingLogic(y_coord, x_coord, tempArr, king_move, gameData, color)
 }
 
 //movement logic for pawn
-function pawnLogic(y_coord, x_coord, tempArr, king_move, gameData, color)
+function pawnLogic(y_coord, x_coord, tempArr, king_move, gameData, color) 
 {
   const board_array = gameData.board_data;
   const history = gameData.history;
@@ -840,7 +841,6 @@ function isGameOver(gameData, simpleHistory)
       game_over = "INSUFFICIENT";
     }
   }
-  
   //CHECKMATE/STALEMATE
   //check if opponent has legal moves
   let turn_now = getAllMoves(gameData, false, opposite(gameData.turn));
@@ -1108,7 +1108,7 @@ function ChessBoard()
   let gameInit = useRef(false); //true when timer and color has been selected
   let hasMoved = useRef({white: false, black: false}); //checks if each side has started their timer
   let reverseBoard = useRef(false); //flip board if playing black
-  let promotionMenu = useRef(false); //shows promotion piece menu when true
+  let promotionData = useRef({menu: false, target: {x: null, y: null}, legalMoves: [], piece: null}); //promotion data
 
   let gameData = {board_data: board_array, turn: playTurn, history: history};
 
@@ -1154,7 +1154,8 @@ function ChessBoard()
   {
     if(history.length === historyIndex+1 || history.length === 0) //if not browsing history
     {
-      if(playTurn === board_array[index_y][index_x].color && gameWinner.current === null && gameInit.current === true) //correct color,game is not over and timer has been selected
+      //correct color,game is not over and timer has been selected, promotion menu not open
+      if(playTurn === board_array[index_y][index_x].color && gameWinner.current === null && gameInit.current === true && promotionData.current.menu === false)
       {
         selectedCoordY.current = index_y;
         selectedCoordX.current = index_x;
@@ -1202,157 +1203,163 @@ function ChessBoard()
       const moveIndex = legalMoves.current.findIndex(e => e.y === endY && e.x === endX);
       if(moveIndex !== -1) //legal move
       {
-        let capture_piece = copy[endY][endX].piece;
+        if(legalMoves.current[moveIndex].special === "promotion") //open promotion menu and handle promotion
+        {
+          promotionData.current = {menu: true, target: {x: endX, y: endY}, legalMoves: legalMoves.current};
+        }
+        else
+        {
+          let capture_piece = copy[endY][endX].piece;
 
-        piece_obj = {piece: piece, color: playTurn, hasMoved: true};
-        copy[endY][endX] = new PieceObject(piece_obj);//move piece
-        piece_obj = {piece: null};
-        copy[startY][startX] = new PieceObject(piece_obj); //clear original position
-        
-        if(history.length === 0)
-        {
-          hasMoved.current.white = true;
-        }
-        if(history.length === 1)
-        {
-          hasMoved.current.black = true;
-        }
-        
-        //special move cases
-        let special = legalMoves.current[moveIndex].special
-        switch(special)
-        {
-          case "castle_king":
-            piece_obj = {piece: "♜", color: playTurn, hasMoved: true};
-            copy[endY][5] = new PieceObject(piece_obj);//move rook to other side of king
-            piece_obj = {piece: null};
-            copy[endY][7] = new PieceObject(piece_obj); //clear rook original position
-            break;
-          case "castle_queen":
-            piece_obj = {piece: "♜", color: playTurn, hasMoved: true};
-            copy[endY][3] = new PieceObject(piece_obj);//move rook to other side of king
-            piece_obj = {piece: null};
-            copy[endY][0] = new PieceObject(piece_obj); //clear rook original position
-            break;
-          case "en_passant":
-            piece_obj = {piece: null};
-            copy[startY][endX] = new PieceObject(piece_obj); //clear pawn being captured
-            break;
-          case "promotion":
-            promotionMenu.current = true;
-            piece_obj = {piece: "♛", color: playTurn, hasMoved: true};
-            copy[endY][endX] = new PieceObject(piece_obj);//turn pawn into queen
-            break;
-          default:
-            break;
-        }
-
-        //captured pieces
-        if(isOccupied(capture_piece))
-        {
-          if(playTurn === "white")
+          piece_obj = {piece: piece, color: playTurn, hasMoved: true};
+          copy[endY][endX] = new PieceObject(piece_obj);//move piece
+          piece_obj = {piece: null};
+          copy[startY][startX] = new PieceObject(piece_obj); //clear original position
+          
+          if(history.length === 0)
           {
-            setBlackCaptures([...blackCaptures, capture_piece]);
+            hasMoved.current.white = true;
           }
-          else
+          if(history.length === 1)
           {
-            setWhiteCaptures([...whiteCaptures, capture_piece]);
+            hasMoved.current.black = true;
           }
-        }
-
-        let history_obj = {data: copy, start: {x: startX, y: startY}, end: {x: endX, y: endY}, piece: piece, color: playTurn, capture: capture_piece, special: special, checkmate: false, check: false, identical: [], notation: ""};
-        let new_history = [...history,history_obj];
-
-        //checks game ending conditions
-        gameData = {board_data: copy, turn: playTurn, history: new_history};
-        const game_over = isGameOver(gameData, simpleHistory.current);
-        switch (game_over) 
-        {
-          case "CHECKMATE":
-            new_history[new_history.length-1].checkmate = true; //mark last move as checkmate for notation
-            gameWinner.current = playTurn.charAt(0).toUpperCase() + playTurn.slice(1)+" wins!";
-            setGameOver("CHECKMATE");
-            break;
-          case "STALEMATE":
-            gameWinner.current = "Draw";
-            setGameOver("STALEMATE");
-            break;
-          case "50-MOVE":
-            gameWinner.current = "Draw";
-            setGameOver("50-MOVE RULE");
-            break;
-          case "REPETITION":
-            gameWinner.current = "Draw";
-            setGameOver("THREEFOLD REPETITION");
-            break;
-          case "INSUFFICIENT":
-            gameWinner.current = "Draw";
-            setGameOver("INSUFFICIENT MATERIAL");
-            break;
-          default:
-            break;
-        }
-
-        //update history
-        let opponentMoves = getAllMoves(gameData, false, playTurn);
-        let history_check = inCheck(opponentMoves);
-        new_history[new_history.length-1].check = history_check; //mark last move as check for notation
-
-        //find identical piece that can move to same square, bishop and queen can happen after promotion
-        if(["♜", "♞", "♝", "♛"].includes(piece))
-        {
-          let identical_arr = [];
-          //loop through data to find identical piece
-          for(let i=0; i<board_array.length; i++)
+          
+          //special move cases
+          let special = legalMoves.current[moveIndex].special
+          switch(special)
           {
-            for(let j=0; j<board_array[i].length; j++)
+            case "castle_king":
+              piece_obj = {piece: "♜", color: playTurn, hasMoved: true};
+              copy[endY][5] = new PieceObject(piece_obj);//move rook to other side of king
+              piece_obj = {piece: null};
+              copy[endY][7] = new PieceObject(piece_obj); //clear rook original position
+              break;
+            case "castle_queen":
+              piece_obj = {piece: "♜", color: playTurn, hasMoved: true};
+              copy[endY][3] = new PieceObject(piece_obj);//move rook to other side of king
+              piece_obj = {piece: null};
+              copy[endY][0] = new PieceObject(piece_obj); //clear rook original position
+              break;
+            case "en_passant":
+              piece_obj = {piece: null};
+              copy[startY][endX] = new PieceObject(piece_obj); //clear pawn being captured
+              break;
+            case "promotion_confirm": //selected from promotion submenu
+              piece_obj = {piece: promotionData.current.piece, color: playTurn, hasMoved: true};
+              copy[endY][endX] = new PieceObject(piece_obj);//turn pawn into queen
+              break;
+            default:
+              break;
+          }
+
+          //captured pieces
+          if(isOccupied(capture_piece))
+          {
+            if(playTurn === "white")
             {
-              if(board_array[i][j].piece === piece && board_array[i][j].color === playTurn && !(i === startY && j === startX)) //piece that is not the moving piece
-              {
-                //found identical piece, find all moves
-                getLegalMoves(i, j, piece, false, {board_data: board_array, turn: playTurn, history: new_history}, playTurn).forEach(move => 
-                {
-                  //if identical piece can move to same square
-                  if(move.x === endX && move.y === endY)
-                  {
-                    let identical = {x: j, y: i};
-                    identical_arr.push(identical);
-                  }
-                });
-              }
+              setBlackCaptures([...blackCaptures, capture_piece]);
+            }
+            else
+            {
+              setWhiteCaptures([...whiteCaptures, capture_piece]);
             }
           }
-          new_history[new_history.length-1].identical = identical_arr;
+
+          let history_obj = {data: copy, start: {x: startX, y: startY}, end: {x: endX, y: endY}, piece: piece, color: playTurn, capture: capture_piece, special: special, checkmate: false, check: false, identical: [], notation: ""};
+          let new_history = [...history,history_obj];
+
+          //checks game ending conditions
+          gameData = {board_data: copy, turn: playTurn, history: new_history};
+          const game_over = isGameOver(gameData, simpleHistory.current);
+          switch (game_over) 
+          {
+            case "CHECKMATE":
+              new_history[new_history.length-1].checkmate = true; //mark last move as checkmate for notation
+              gameWinner.current = playTurn.charAt(0).toUpperCase() + playTurn.slice(1)+" wins!";
+              setGameOver("CHECKMATE");
+              break;
+            case "STALEMATE":
+              gameWinner.current = "Draw";
+              setGameOver("STALEMATE");
+              break;
+            case "50-MOVE":
+              gameWinner.current = "Draw";
+              setGameOver("50-MOVE RULE");
+              break;
+            case "REPETITION":
+              gameWinner.current = "Draw";
+              setGameOver("THREEFOLD REPETITION");
+              break;
+            case "INSUFFICIENT":
+              gameWinner.current = "Draw";
+              setGameOver("INSUFFICIENT MATERIAL");
+              break;
+            default:
+              break;
+          }
+
+          //update history
+          let opponentMoves = getAllMoves(gameData, false, playTurn);
+          let history_check = inCheck(opponentMoves);
+          new_history[new_history.length-1].check = history_check; //mark last move as check for notation
+
+          //find identical piece that can move to same square, bishop and queen can happen after promotion
+          if(["♜", "♞", "♝", "♛"].includes(piece))
+          {
+            let identical_arr = [];
+            //loop through data to find identical piece
+            for(let i=0; i<board_array.length; i++)
+            {
+              for(let j=0; j<board_array[i].length; j++)
+              {
+                if(board_array[i][j].piece === piece && board_array[i][j].color === playTurn && !(i === startY && j === startX)) //piece that is not the moving piece
+                {
+                  //found identical piece, find all moves
+                  getLegalMoves(i, j, piece, false, {board_data: board_array, turn: playTurn, history: new_history}, playTurn).forEach(move => 
+                  {
+                    //if identical piece can move to same square
+                    if(move.x === endX && move.y === endY)
+                    {
+                      let identical = {x: j, y: i};
+                      identical_arr.push(identical);
+                    }
+                  });
+                }
+              }
+            }
+            new_history[new_history.length-1].identical = identical_arr;
+          }
+          new_history[new_history.length-1].notation = moveToNotation(new_history[new_history.length-1]);
+
+          //set history values
+          let simple_move_data = setSimpleHistory(copy);
+          simpleHistory.current = [...simpleHistory.current, simple_move_data];
+
+          setHistory(new_history);
+          setHistoryIndex(history.length);
+          
+          setPlayTurn(opposite(playTurn));
+          playSound();
         }
-        new_history[new_history.length-1].notation = moveToNotation(new_history[new_history.length-1]);
-
-        //set history values
-        let simple_move_data = setSimpleHistory(copy);
-        simpleHistory.current = [...simpleHistory.current, simple_move_data];
-
-        setHistory(new_history);
-        setHistoryIndex(history.length);
-        
-        setPlayTurn(opposite(playTurn));
-        playSound();
-      }
-      //remove highlights, happens also on illegal move attempt to cancel selection
-      for(let i=0; i<legalMoves.current.length; i++)
-      {
-        let coordY = legalMoves.current[i].y;
-        let coordX = legalMoves.current[i].x;
-
-        //reset selected piece and captured piece classes
-        copy[coordY][coordX].cssClass = "";
-        copy[startY][startX].cssClass = "";
-        if(copy[coordY][coordX].piece === "●")
+        //remove highlights, happens also on illegal move attempt to cancel selection
+        for(let i=0; i<legalMoves.current.length; i++)
         {
-          piece_obj = {piece: null};
-          copy[coordY][coordX] = new PieceObject(piece_obj);
+          let coordY = legalMoves.current[i].y;
+          let coordX = legalMoves.current[i].x;
+
+          //reset selected piece and captured piece classes
+          copy[coordY][coordX].cssClass = "";
+          copy[startY][startX].cssClass = "";
+          if(copy[coordY][coordX].piece === "●")
+          {
+            piece_obj = {piece: null};
+            copy[coordY][coordX] = new PieceObject(piece_obj);
+          }
         }
+        legalMoves.current = [];
+        setBoardArray(copy);
       }
-      legalMoves.current = [];
-      setBoardArray(copy);
     }
   }
 
@@ -1427,6 +1434,22 @@ function ChessBoard()
     reverseBoard.current = document.querySelector('input[name="pieceColor"]:checked').value === "black" ? true : false; //white or black
   }
 
+  //handle promotion logic from menu
+  function promotePiece(piece)
+  {
+    //edit legalmoves.special into different value
+    const updated = promotionData.current.legalMoves.map(o => ({
+      ...o,
+      special: "promotion_confirm",
+    }));
+    legalMoves.current = updated;
+
+    promotionData.current.menu = false; //close menu
+    promotionData.current.piece = piece; //update to selected piece
+
+    clickEnd(promotionData.current.target.y, promotionData.current.target.x); //simulate click
+  }
+
   //generate board dynamically
   let board_rows = [];
   for(let y=7; y>=0; y--)
@@ -1464,7 +1487,7 @@ function ChessBoard()
       </div>
       <StartScreen gameInit={gameInit.current} onSetTimer={setTimer}/>
       <PopUp gameStatus={gameOver} gameWinner={gameWinner.current} resetBoard={()=>resetBoard()}/>
-      <PromotionMenu promotion={promotionMenu.current}/>
+      <PromotionMenu promotion={promotionData.current} choosePromotion={promotePiece}/>
     </div>
     <VerticalMenu timer={reverseBoard.current ? formatTime(timerBlack) : formatTime(timerWhite)} captures={whiteCaptures} opponent={blackCaptures} color='white'/>    
   </div>
@@ -1472,15 +1495,16 @@ function ChessBoard()
   );
 }
 
-function PromotionMenu({promotion})
+//promotion menu
+function PromotionMenu({promotion, choosePromotion})
 {
-  if(promotion)
+  if(promotion.menu)
   {
    return <div className='promote-menu'>
-      <div className='promote-piece'>♜</div>
-      <div className='promote-piece'>♞</div>
-      <div className='promote-piece'>♝</div>
-      <div className='promote-piece'>♛</div>
+      <div onClick={()=>choosePromotion("♜")} className='promote-piece'>♜</div>
+      <div onClick={()=>choosePromotion("♞")} className='promote-piece'>♞</div>
+      <div onClick={()=>choosePromotion("♝")} className='promote-piece'>♝</div>
+      <div onClick={()=>choosePromotion("♛")} className='promote-piece'>♛</div>
     </div>;
   }
   else

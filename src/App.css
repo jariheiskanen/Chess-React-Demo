@@ -368,6 +368,7 @@ body
   font-size: 150%;
   padding: 10px 15px;
   border-right: 1px solid #cccccc;
+  cursor: pointer;
 }
 
 .promote-piece:last-child
