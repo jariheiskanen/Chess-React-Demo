@@ -8,10 +8,12 @@ TODO:
 - check component optimization (log when each component with functions triggers on re-render)
 - drag right click arrows, canvas overlay?
 - add proper error if trying to perform a move while browsing history
-- add option to promote pawn to other pieces than queen
-  - edit move notation
+- promotion
   - test different promotion cases
-  - visual changes on hover and location of promotion menu
+    > multiple promotions
+    > promotions into check
+    > promotion to block a check?
+  - promotion menu position for black (non issue? only matters when playing both sides)
 - repetition logic improvement
 */
 
@@ -1026,8 +1028,8 @@ function moveToNotation(history)
     case "castle_queen":
       notation = "O-O-O";
       break;
-    case "promotion":
-      notation += "=♛";
+    case "promotion_confirm":
+      notation += "="+history.promotion.piece;
       break;
     default:
       break;
@@ -1247,7 +1249,7 @@ function ChessBoard()
               break;
             case "promotion_confirm": //selected from promotion submenu
               piece_obj = {piece: promotionData.current.piece, color: playTurn, hasMoved: true};
-              copy[endY][endX] = new PieceObject(piece_obj);//turn pawn into queen
+              copy[endY][endX] = new PieceObject(piece_obj);//turn pawn into selected piece
               break;
             default:
               break;
@@ -1266,7 +1268,7 @@ function ChessBoard()
             }
           }
 
-          let history_obj = {data: copy, start: {x: startX, y: startY}, end: {x: endX, y: endY}, piece: piece, color: playTurn, capture: capture_piece, special: special, checkmate: false, check: false, identical: [], notation: ""};
+          let history_obj = {data: copy, start: {x: startX, y: startY}, end: {x: endX, y: endY}, piece: piece, color: playTurn, capture: capture_piece, special: special, checkmate: false, check: false, promotion: promotionData.current, identical: [], notation: ""};
           let new_history = [...history,history_obj];
 
           //checks game ending conditions
@@ -1487,7 +1489,7 @@ function ChessBoard()
       </div>
       <StartScreen gameInit={gameInit.current} onSetTimer={setTimer}/>
       <PopUp gameStatus={gameOver} gameWinner={gameWinner.current} resetBoard={()=>resetBoard()}/>
-      <PromotionMenu promotion={promotionData.current} choosePromotion={promotePiece}/>
+      <PromotionMenu promotion={promotionData.current} choosePromotion={promotePiece} square={promotionData.current.target}/>
     </div>
     <VerticalMenu timer={reverseBoard.current ? formatTime(timerBlack) : formatTime(timerWhite)} captures={whiteCaptures} opponent={blackCaptures} color='white'/>    
   </div>
@@ -1496,11 +1498,15 @@ function ChessBoard()
 }
 
 //promotion menu
-function PromotionMenu({promotion, choosePromotion})
+function PromotionMenu({promotion, choosePromotion, square})
 {
   if(promotion.menu)
   {
-   return <div className='promote-menu'>
+    //location of promotion menu
+    //square width multiplied by squares index, plus half square to center it, minus half of menus width
+    const menu_location = parseInt(square.x) * 70 + 35 - 110;
+
+    return <div style={{left: menu_location}} className='promote-menu'>
       <div onClick={()=>choosePromotion("♜")} className='promote-piece'>♜</div>
       <div onClick={()=>choosePromotion("♞")} className='promote-piece'>♞</div>
       <div onClick={()=>choosePromotion("♝")} className='promote-piece'>♝</div>
