@@ -2,18 +2,13 @@
 TODO:
 - game start screen?
   - AI opponent?
-  - timer re-renders whole main component
-  - timer only shows full seconds and consumes time after whole second has passed
+- timer re-renders whole main component
+- timer only shows full seconds and consumes time after whole second has passed
 - reuse game start and game end screen components?
 - check component optimization (log when each component with functions triggers on re-render)
 - drag right click arrows, canvas overlay?
-- add proper error if trying to perform a move while browsing history
-- promotion
-  - test different promotion cases
-    > multiple promotions
-    > promotions into check
-    > promotion to block a check?
-  - promotion menu position for black (non issue? only matters when playing both sides)
+- promotion menu piece color shows always as black?
+- promotion menu position for black (non issue? only matters when playing both sides)
 - repetition logic improvement
 */
 
@@ -1100,6 +1095,7 @@ function ChessBoard()
   const [blackCaptures, setBlackCaptures] = useState([]); //lost pieces for black
   const [timerWhite, setTimerWhite] = useState(null); //timer for white
   const [timerBlack, setTimerBlack] = useState(null); //timer for black
+  const [errorPrompt, setErrorPrompt] = useState({text: null}); //show error prompt
 
   let legalMoves = useRef([]);
   let selectedCoordY = useRef(null);
@@ -1187,7 +1183,7 @@ function ChessBoard()
     }
     else
     {
-      alert("go to current move first");
+      setErrorPrompt({text: "Go to current move first!"}); //object causes a re-render even if set to same value
     }
   }
 
@@ -1490,11 +1486,29 @@ function ChessBoard()
       <StartScreen gameInit={gameInit.current} onSetTimer={setTimer}/>
       <PopUp gameStatus={gameOver} gameWinner={gameWinner.current} resetBoard={()=>resetBoard()}/>
       <PromotionMenu promotion={promotionData.current} choosePromotion={promotePiece} square={promotionData.current.target}/>
+      <ErrorPrompt message={errorPrompt.text} onHide={()=>setErrorPrompt({text: null})}/>
     </div>
     <VerticalMenu timer={reverseBoard.current ? formatTime(timerBlack) : formatTime(timerWhite)} captures={whiteCaptures} opponent={blackCaptures} color='white'/>    
   </div>
   </>
   );
+}
+
+//error prompt
+function ErrorPrompt({message, onHide})
+{
+  useEffect(() => {
+    if (!message) return; //no message, return
+
+    const timer = setTimeout(() => {
+      onHide(); //remove message/error after 3 seconds
+    }, 3000);
+
+    return () => clearTimeout(timer); //clear timer
+  }, [message, onHide]);
+
+  if (!message) return null; //no message, don't show error
+  return <div className="error-prompt">{message}</div>;
 }
 
 //promotion menu

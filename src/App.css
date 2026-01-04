@@ -391,3 +391,16 @@ body
   border-right: 8px solid transparent;
   border-top: 8px solid white;
 }
+
+.error-prompt
+{
+  position: absolute;
+  background-color: #d70000;
+  color: white;
+  padding: 10px 20px;
+  z-index: 1000;
+  border-radius: .25rem;
+  top: 10px;
+  left: 10px;
+  font-weight: bold;
+}
