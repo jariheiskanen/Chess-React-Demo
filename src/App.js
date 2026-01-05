@@ -2,12 +2,14 @@
 TODO:
 - AI opponent?
 - timer only shows full seconds and consumes time after whole second has passed
-- reuse game start and game end screen components?
+- improve lost piece calculation structure
 - check component optimization (log when each component with functions triggers on re-render)
+- repetition logic improvement 
+- reuse game start and game end screen components?
 - drag right click arrows, canvas overlay?
 - promotion menu piece color shows always as black?
 - promotion menu position for black (non issue? only matters when playing both sides)
-- repetition logic improvement
+
 */
 
 import { useState, useEffect, useRef } from 'react';
@@ -913,6 +915,36 @@ function setSimpleHistory(data)
   return arr;
 }
 
+//value of lost pieces
+function calcPieceValues(array)
+{
+  let total = 0;
+  for(let i=0; i<array.length; i++)
+  {
+    switch(array[i])
+    {
+      case "♟":
+        total += 1;
+        break;
+      case "♞":
+        total += 3;
+        break;
+      case "♝":
+        total += 3;
+        break;
+      case "♜":
+        total += 5;
+        break;
+      case "♛":
+        total += 9;
+        break;
+      default:
+        break;
+    }
+  }
+  return total;
+}
+
 //returns chess square such as A4 from given coordinates
 function coordToSquare(coordY, coordX)
 {
@@ -1528,47 +1560,10 @@ function VerticalMenu({color, captures, opponent, clock, active, move, endGame})
     total = null;
   }
 
-  //value of lost pieces
-  function calcPieceValues(array)
-  {
-    let total = 0;
-    for(let i=0; i<array.length; i++)
-    {
-      switch(array[i])
-      {
-        case "♟":
-          total += 1;
-          break;
-        case "♞":
-          total += 3;
-          break;
-        case "♝":
-          total += 3;
-          break;
-        case "♜":
-          total += 5;
-          break;
-        case "♛":
-          total += 9;
-          break;
-        default:
-          break;
-      }
-    }
-    return total;
-  }
-
   return <div className={'vertical-menu menu-'+color}>
     <div className={'turn-timer timer-'+color}>{formatTime(time)}</div>
     <div className={'capture-pieces'}>{captures?.slice().sort().reverse().join("")+" "+(total ?? "")}</div>
   </div>;
-
-  /*
-  return <div className={'vertical-menu menu-'+color}>
-    <div className={'turn-timer timer-'+color}>{timer}</div>
-    <div className={'capture-pieces'}>{captures?.slice().sort().reverse().join("")+" "+(total ?? "")}</div>
-  </div>;
-  */
 }
 
 //error prompt
