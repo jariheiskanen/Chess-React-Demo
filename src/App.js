@@ -1,8 +1,6 @@
 /*
 TODO:
-- game start screen?
-  - AI opponent?
-- timer re-renders whole main component
+- AI opponent?
 - timer only shows full seconds and consumes time after whole second has passed
 - reuse game start and game end screen components?
 - check component optimization (log when each component with functions triggers on re-render)
@@ -1093,9 +1091,8 @@ function ChessBoard()
   const [gameOver, setGameOver] = useState(null); //game over message if win/draw
   const [whiteCaptures, setWhiteCaptures] = useState([]); //lost pieces for white
   const [blackCaptures, setBlackCaptures] = useState([]); //lost pieces for black
-  const [timerWhite, setTimerWhite] = useState(null); //timer for white
-  const [timerBlack, setTimerBlack] = useState(null); //timer for black
   const [errorPrompt, setErrorPrompt] = useState({text: null}); //show error prompt
+  const [gameInit, setGameInit] = useState(false); //true when timer and color has been selected
 
   let legalMoves = useRef([]);
   let selectedCoordY = useRef(null);
@@ -1103,10 +1100,11 @@ function ChessBoard()
   let selectedType = useRef(null);
   let simpleHistory = useRef([]); //used for repetition checks
   let gameWinner = useRef(null); //DRAW, WHITE or BLACK
-  let gameInit = useRef(false); //true when timer and color has been selected
   let hasMoved = useRef({white: false, black: false}); //checks if each side has started their timer
   let reverseBoard = useRef(false); //flip board if playing black
   let promotionData = useRef({menu: false, target: {x: null, y: null}, legalMoves: [], piece: null}); //promotion data
+  let timerWhite = useRef(null);
+  let timerBlack = useRef(null);
 
   let gameData = {board_data: board_array, turn: playTurn, history: history};
 
@@ -1116,44 +1114,13 @@ function ChessBoard()
     //eslint-disable-next-line
   },[]);
 
-  //timer starts after first move is performed
-  useEffect(() => {
-    if (!gameInit.current) return;
-    if (!hasMoved.current[playTurn]) return;
-    if (gameOver !== null) return;
-    if (timerWhite === 9999) return; //infinite timer
-
-    const interval = setInterval(() => {
-      //decrease timer, prev has previous state
-      const activeSetter = playTurn === "white" ? setTimerWhite : setTimerBlack;
-      activeSetter((prev) => Math.max(prev - 1, 0));
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [playTurn, gameOver, timerWhite]);
-
-  //checks for timeout
-  useEffect(() => 
-  {
-    if(timerWhite === 0)
-    {
-      setGameOver("TIMEOUT");
-      gameWinner.current = "Black wins";
-    }
-    if(timerBlack === 0)
-    {
-      setGameOver("TIMEOUT");
-      gameWinner.current = "White wins";
-    }
-  }, [timerWhite, timerBlack]);
-
   //calculate and highlight legal moves
   function ClickPiece(index_y, index_x)
   {
     if(history.length === historyIndex+1 || history.length === 0) //if not browsing history
     {
       //correct color,game is not over and timer has been selected, promotion menu not open
-      if(playTurn === board_array[index_y][index_x].color && gameWinner.current === null && gameInit.current === true && promotionData.current.menu === false)
+      if(playTurn === board_array[index_y][index_x].color && gameWinner.current === null && gameInit === true && promotionData.current.menu === false)
       {
         selectedCoordY.current = index_y;
         selectedCoordX.current = index_x;
@@ -1371,7 +1338,6 @@ function ChessBoard()
     selectedType.current = null;
     gameWinner.current = null;
     simpleHistory.current = [];
-    gameInit.current = false;
     hasMoved.current = {white: false, black: false};
     reverseBoard.current = false;
 
@@ -1381,8 +1347,7 @@ function ChessBoard()
     setPlayTurn("white");
     setWhiteCaptures([]);
     setBlackCaptures([]);
-    setTimerWhite(null);
-    setTimerBlack(null);
+    setGameInit(false);
   }
 
   //click event on right side history panel
@@ -1414,21 +1379,28 @@ function ChessBoard()
  
   }
 
+  //timeout
+  function timeout()
+  {
+    setGameOver("TIMEOUT");
+    gameWinner.current = opposite(playTurn).charAt(0).toUpperCase() + opposite(playTurn).slice(1)+" wins!";
+  }
+
   //sets timers
   function setTimer(seconds)
   {
     //infinite timer sets time to 9999
     if(seconds === null)
     {
-      setTimerWhite(9999);
-      setTimerBlack(9999);
+      timerWhite.current = 9999;
+      timerBlack.current = 9999;
     }
     else
     {
-      setTimerWhite(seconds);
-      setTimerBlack(seconds);
+      timerWhite.current = seconds;
+      timerBlack.current = seconds;
     } 
-    gameInit.current = true;
+    setGameInit(true);
     reverseBoard.current = document.querySelector('input[name="pieceColor"]:checked').value === "black" ? true : false; //white or black
   }
 
@@ -1475,7 +1447,7 @@ function ChessBoard()
   return(
   <>
   <div className='layout-wrapper'>
-    <VerticalMenu timer={reverseBoard.current ? formatTime(timerWhite) : formatTime(timerBlack)} captures={blackCaptures} opponent={whiteCaptures} color='black'/>
+    <VerticalMenu endGame={()=>timeout()} move={history.length > 1} active={playTurn === "black" && gameInit && gameOver === null} clock={reverseBoard.current ? timerWhite.current : timerBlack.current} captures={blackCaptures} opponent={whiteCaptures} color='black'/>
     <div className='board-wrapper'>
       <div className={'chess-board reverse-'+reverseBoard.current}>{board_rows}</div>
       <div className='info-panel'>
@@ -1483,15 +1455,120 @@ function ChessBoard()
         <MoveHistory history={history} selected={historyIndex} browseHistory={browseHistory}/>
         <button className='forfeit-button action-button' onClick={()=>surrender()}>Forfeit</button>
       </div>
-      <StartScreen gameInit={gameInit.current} onSetTimer={setTimer}/>
+      <StartScreen gameInit={gameInit} onSetTimer={setTimer}/>
       <PopUp gameStatus={gameOver} gameWinner={gameWinner.current} resetBoard={()=>resetBoard()}/>
       <PromotionMenu promotion={promotionData.current} choosePromotion={promotePiece} square={promotionData.current.target}/>
       <ErrorPrompt message={errorPrompt.text} onHide={()=>setErrorPrompt({text: null})}/>
     </div>
-    <VerticalMenu timer={reverseBoard.current ? formatTime(timerBlack) : formatTime(timerWhite)} captures={whiteCaptures} opponent={blackCaptures} color='white'/>    
+    <VerticalMenu endGame={()=>timeout()} move={history.length > 0} active={playTurn === "white" && gameInit && gameOver === null} clock={reverseBoard.current ? timerBlack.current : timerWhite.current} captures={whiteCaptures} opponent={blackCaptures} color='white'/>    
   </div>
   </>
   );
+}
+
+//custom hook for chess timers
+function useChessClock(clock, isRunning, firstMove) {
+  const timeRef = useRef(null);
+  const intervalRef = useRef(null);
+  const [, forceRender] = useState(0); //forces a render each second
+
+  //update timeRef when game starts
+  useEffect(() => {
+    if (clock != null && timeRef.current == null) {
+      timeRef.current = clock;
+      forceRender(t => t + 1);
+    }
+  }, [clock]);
+
+  useEffect(() => {
+    if(!firstMove) return; //start timer only after first move played
+    if(timeRef.current === 9999) return; // don't start timer on infinite mode
+    if (!isRunning) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+      return;
+    }
+
+    clearInterval(intervalRef.current);
+    intervalRef.current = setInterval(() => {
+      timeRef.current -= 1;
+      forceRender(t => t + 1);
+    }, 1000);
+
+    return () => clearInterval(intervalRef.current);
+  }, [isRunning, firstMove]);
+
+  return timeRef.current;
+}
+
+//above and below board
+function VerticalMenu({color, captures, opponent, clock, active, move, endGame})
+{
+  const time = useChessClock(clock, active, move);
+
+  //end game on timeout
+  useEffect(() => {
+    if(time === 0) 
+    {
+      endGame();
+    }
+  }, [time, endGame]);
+
+  //piece value calculation
+  let lost_self = calcPieceValues(captures);
+  let lost_opponent = calcPieceValues(opponent);
+
+  let total = lost_opponent - lost_self;
+  if(total > 0)
+  {
+    total = "(+"+total+")";
+  }
+  else
+  {
+    total = null;
+  }
+
+  //value of lost pieces
+  function calcPieceValues(array)
+  {
+    let total = 0;
+    for(let i=0; i<array.length; i++)
+    {
+      switch(array[i])
+      {
+        case "♟":
+          total += 1;
+          break;
+        case "♞":
+          total += 3;
+          break;
+        case "♝":
+          total += 3;
+          break;
+        case "♜":
+          total += 5;
+          break;
+        case "♛":
+          total += 9;
+          break;
+        default:
+          break;
+      }
+    }
+    return total;
+  }
+
+  return <div className={'vertical-menu menu-'+color}>
+    <div className={'turn-timer timer-'+color}>{formatTime(time)}</div>
+    <div className={'capture-pieces'}>{captures?.slice().sort().reverse().join("")+" "+(total ?? "")}</div>
+  </div>;
+
+  /*
+  return <div className={'vertical-menu menu-'+color}>
+    <div className={'turn-timer timer-'+color}>{timer}</div>
+    <div className={'capture-pieces'}>{captures?.slice().sort().reverse().join("")+" "+(total ?? "")}</div>
+  </div>;
+  */
 }
 
 //error prompt
@@ -1565,58 +1642,6 @@ function StartScreen({onSetTimer, gameInit})
     </div>;
   }
   
-}
-
-//above and below board
-function VerticalMenu({color, captures, opponent, timer})
-{
-  let lost_self = calcPieceValues(captures);
-  let lost_opponent = calcPieceValues(opponent);
-
-  let total = lost_opponent - lost_self;
-  if(total > 0)
-  {
-    total = "(+"+total+")";
-  }
-  else
-  {
-    total = null;
-  }
-
-  //value of lost pieces
-  function calcPieceValues(array)
-  {
-    let total = 0;
-    for(let i=0; i<array.length; i++)
-    {
-      switch(array[i])
-      {
-        case "♟":
-          total += 1;
-          break;
-        case "♞":
-          total += 3;
-          break;
-        case "♝":
-          total += 3;
-          break;
-        case "♜":
-          total += 5;
-          break;
-        case "♛":
-          total += 9;
-          break;
-        default:
-          break;
-      }
-    }
-    return total;
-  }
-
-  return <div className={'vertical-menu menu-'+color}>
-    <div className={'turn-timer timer-'+color}>{timer}</div>
-    <div className={'capture-pieces'}>{captures?.slice().sort().reverse().join("")+" "+(total ?? "")}</div>
-  </div>;
 }
 
 //popup for game end screen
