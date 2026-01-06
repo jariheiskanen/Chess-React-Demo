@@ -1,11 +1,10 @@
 /*
 TODO:
-- AI opponent?
 - timer only shows full seconds and consumes time after whole second has passed
-- improve lost piece calculation structure
 - check component optimization (log when each component with functions triggers on re-render)
 - repetition logic improvement 
-- reuse game start and game end screen components?
+
+- AI opponent?
 - drag right click arrows, canvas overlay?
 - promotion menu piece color shows always as black?
 - promotion menu position for black (non issue? only matters when playing both sides)
@@ -1372,6 +1371,8 @@ function ChessBoard()
     simpleHistory.current = [];
     hasMoved.current = {white: false, black: false};
     reverseBoard.current = false;
+    timerWhite.current = null;
+    timerBlack.current = null;
 
     setGameOver(null);
     setHistoryIndex(null);    
@@ -1431,7 +1432,7 @@ function ChessBoard()
     {
       timerWhite.current = seconds;
       timerBlack.current = seconds;
-    } 
+    }
     setGameInit(true);
     reverseBoard.current = document.querySelector('input[name="pieceColor"]:checked').value === "black" ? true : false; //white or black
   }
@@ -1476,10 +1477,20 @@ function ChessBoard()
     board_rows.push(<div key={y} className={'board-row row-'+y+' reverse-'+reverseBoard.current}>{row_arr}</div>);
   }
 
+  //swap clocks on reversed board
+  let clock_top = <VerticalMenu endGame={()=>timeout()} move={history.length > 1} active={playTurn === "black" && gameInit && gameOver === null} clock={timerBlack.current} captures={blackCaptures} opponent={whiteCaptures} color='black'/>;
+  let clock_bottom = <VerticalMenu endGame={()=>timeout()} move={history.length > 0} active={playTurn === "white" && gameInit && gameOver === null} clock={timerWhite.current} captures={whiteCaptures} opponent={blackCaptures} color='white'/>;
+  if(reverseBoard.current)
+  {
+    let temp_top = clock_top;
+    clock_top = clock_bottom;
+    clock_bottom = temp_top;
+  }
+
   return(
   <>
   <div className='layout-wrapper'>
-    <VerticalMenu endGame={()=>timeout()} move={history.length > 1} active={playTurn === "black" && gameInit && gameOver === null} clock={reverseBoard.current ? timerWhite.current : timerBlack.current} captures={blackCaptures} opponent={whiteCaptures} color='black'/>
+    {clock_top}
     <div className='board-wrapper'>
       <div className={'chess-board reverse-'+reverseBoard.current}>{board_rows}</div>
       <div className='info-panel'>
@@ -1488,11 +1499,11 @@ function ChessBoard()
         <button className='forfeit-button action-button' onClick={()=>surrender()}>Forfeit</button>
       </div>
       <StartScreen gameInit={gameInit} onSetTimer={setTimer}/>
-      <PopUp gameStatus={gameOver} gameWinner={gameWinner.current} resetBoard={()=>resetBoard()}/>
+      <EndScreen gameStatus={gameOver} gameWinner={gameWinner.current} resetBoard={()=>resetBoard()}/>
       <PromotionMenu promotion={promotionData.current} choosePromotion={promotePiece} square={promotionData.current.target}/>
       <ErrorPrompt message={errorPrompt.text} onHide={()=>setErrorPrompt({text: null})}/>
     </div>
-    <VerticalMenu endGame={()=>timeout()} move={history.length > 0} active={playTurn === "white" && gameInit && gameOver === null} clock={reverseBoard.current ? timerBlack.current : timerWhite.current} captures={whiteCaptures} opponent={blackCaptures} color='white'/>    
+    {clock_bottom}
   </div>
   </>
   );
@@ -1504,13 +1515,13 @@ function useChessClock(clock, isRunning, firstMove) {
   const intervalRef = useRef(null);
   const [, forceRender] = useState(0); //forces a render each second
 
-  //update timeRef when game starts
+  //set clock each time new game is started
   useEffect(() => {
-    if (clock != null && timeRef.current == null) {
-      timeRef.current = clock;
-      forceRender(t => t + 1);
-    }
-  }, [clock]);
+    if (clock == null) return;
+
+    timeRef.current = clock;
+    forceRender(t => t + 1);
+  }, [clock, firstMove]);
 
   useEffect(() => {
     if(!firstMove) return; //start timer only after first move played
@@ -1540,11 +1551,11 @@ function VerticalMenu({color, captures, opponent, clock, active, move, endGame})
 
   //end game on timeout
   useEffect(() => {
-    if(time === 0) 
+    if(time === 0 && active && move)
     {
       endGame();
     }
-  }, [time, endGame]);
+  }, [time, endGame, active, move]);
 
   //piece value calculation
   let lost_self = calcPieceValues(captures);
@@ -1640,7 +1651,7 @@ function StartScreen({onSetTimer, gameInit})
 }
 
 //popup for game end screen
-function PopUp({gameStatus, gameWinner, resetBoard})
+function EndScreen({gameStatus, gameWinner, resetBoard})
 {
   if(gameStatus === null)
   {
