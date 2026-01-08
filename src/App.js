@@ -1,13 +1,12 @@
 /*
 TODO:
-- timer only shows full seconds and consumes time after whole second has passed
-- check component optimization (log when each component with functions triggers on re-render)
-- repetition logic improvement 
+- repetition logic improvement
 
 - AI opponent?
 - drag right click arrows, canvas overlay?
 - promotion menu piece color shows always as black?
 - promotion menu position for black (non issue? only matters when playing both sides)
+- timer pauses when out of focus, use date based timer or possible irrelevant without serverside?
 
 */
 
@@ -1062,28 +1061,41 @@ function moveToNotation(history)
   return notation;
 }
 
-//formats time into MM:SS format
-function formatTime(seconds)
+//formats time into MM:SS format, also decimals below 1 minute
+function formatTime(deciseconds)
 {
-  if(seconds === 9999)
+
+  if(deciseconds === 99999)
   {
     return "--:--";
   }
   else
   {
+    let decis = deciseconds%10;
+    let seconds = Math.floor(deciseconds/10);
     let minutes = Math.floor(seconds/60);
-    let real_seconds = seconds%60;
 
-    if(minutes < 10)
+    let format_minutes = minutes;
+    let format_seconds = seconds%60; //get remainder
+
+    if(format_minutes < 10)
     {
-      minutes = "0"+minutes;
+      format_minutes = "0"+format_minutes;
     }
-    if(real_seconds < 10)
+    if(format_seconds < 10)
     {
-      real_seconds = "0"+real_seconds;
+      format_seconds = "0"+format_seconds;
     }
 
-    return minutes+":"+real_seconds;
+    //don't show decimals if more than a minute left
+    if(minutes > 0)
+    {
+      return format_minutes+":"+format_seconds;
+    }
+    else
+    {
+      return format_minutes+":"+format_seconds+"."+decis;
+    }    
   }
 
 }
@@ -1420,18 +1432,18 @@ function ChessBoard()
   }
 
   //sets timers
-  function setTimer(seconds)
+  function setTimer(deciseconds)
   {
     //infinite timer sets time to 9999
-    if(seconds === null)
+    if(deciseconds === null)
     {
-      timerWhite.current = 9999;
-      timerBlack.current = 9999;
+      timerWhite.current = 99999;
+      timerBlack.current = 99999;
     }
     else
     {
-      timerWhite.current = seconds;
-      timerBlack.current = seconds;
+      timerWhite.current = deciseconds;
+      timerBlack.current = deciseconds;
     }
     setGameInit(true);
     reverseBoard.current = document.querySelector('input[name="pieceColor"]:checked').value === "black" ? true : false; //white or black
@@ -1525,18 +1537,19 @@ function useChessClock(clock, isRunning, firstMove) {
 
   useEffect(() => {
     if(!firstMove) return; //start timer only after first move played
-    if(timeRef.current === 9999) return; // don't start timer on infinite mode
+    if(timeRef.current === 99999) return; // don't start timer on infinite mode
     if (!isRunning) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
       return;
     }
 
+    //clear timer and start interval to count with .1s precision
     clearInterval(intervalRef.current);
     intervalRef.current = setInterval(() => {
       timeRef.current -= 1;
       forceRender(t => t + 1);
-    }, 1000);
+    }, 100);
 
     return () => clearInterval(intervalRef.current);
   }, [isRunning, firstMove]);
@@ -1640,9 +1653,9 @@ function StartScreen({onSetTimer, gameInit})
         </form>
       </div>
       <div className='timer-selection'>
-        <button className='action-button' onClick={() => onSetTimer(600)}>10+0</button>
-        <button className='action-button' onClick={() => onSetTimer(180)}>3+0</button>
-        <button className='action-button' onClick={() => onSetTimer(60)}>1+0</button>
+        <button className='action-button' onClick={() => onSetTimer(6000)}>10+0</button>
+        <button className='action-button' onClick={() => onSetTimer(1800)}>3+0</button>
+        <button className='action-button' onClick={() => onSetTimer(600)}>1+0</button>
         <button className='action-button' onClick={() => onSetTimer(null)}>∞</button>
       </div>
     </div>;
