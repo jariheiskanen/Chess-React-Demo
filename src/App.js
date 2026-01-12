@@ -1,9 +1,9 @@
 /*
 TODO:
-- repetition logic improvement
+- clean clickPiece and clickEnd function into smaller functions
+- canvas drawing logic
 
 - AI opponent?
-- drag right click arrows, canvas overlay?
 - promotion menu piece color shows always as black?
 - promotion menu position for black (non issue? only matters when playing both sides)
 - timer pauses when out of focus, use date based timer or possible irrelevant without serverside?
@@ -783,8 +783,6 @@ function isGameOver(gameData, simpleHistory)
   }
 
   //REPETITION
-  //currently only checks exactly same positions on board
-  //it is possible for position to be different through repeated discovered checks etc.
   let repetition = 0;
   let last_data = JSON.stringify(simpleHistory[simpleHistory.length-1]);
   for(let i=0; i<simpleHistory.length-1; i++)
@@ -1148,6 +1146,7 @@ function ChessBoard()
   let promotionData = useRef({menu: false, target: {x: null, y: null}, legalMoves: [], piece: null}); //promotion data
   let timerWhite = useRef(null);
   let timerBlack = useRef(null);
+  const canvasRef = useRef(null);
 
   let gameData = {board_data: board_array, turn: playTurn, history: history};
 
@@ -1350,24 +1349,24 @@ function ChessBoard()
           setPlayTurn(opposite(playTurn));
           playSound();
         }
-        //remove highlights, happens also on illegal move attempt to cancel selection
-        for(let i=0; i<legalMoves.current.length; i++)
-        {
-          let coordY = legalMoves.current[i].y;
-          let coordX = legalMoves.current[i].x;
-
-          //reset selected piece and captured piece classes
-          copy[coordY][coordX].cssClass = "";
-          copy[startY][startX].cssClass = "";
-          if(copy[coordY][coordX].piece === "●")
-          {
-            piece_obj = {piece: null};
-            copy[coordY][coordX] = new PieceObject(piece_obj);
-          }
-        }
-        legalMoves.current = [];
-        setBoardArray(copy);
       }
+      //remove highlights, happens also on illegal move attempt to cancel selection
+      for(let i=0; i<legalMoves.current.length; i++)
+      {
+        let coordY = legalMoves.current[i].y;
+        let coordX = legalMoves.current[i].x;
+
+        //reset selected piece and captured piece classes
+        copy[coordY][coordX].cssClass = "";
+        copy[startY][startX].cssClass = "";
+        if(copy[coordY][coordX].piece === "●")
+        {
+          piece_obj = {piece: null};
+          copy[coordY][coordX] = new PieceObject(piece_obj);
+        }
+      }
+      legalMoves.current = [];
+      setBoardArray(copy);
     }
   }
 
@@ -1465,6 +1464,35 @@ function ChessBoard()
     clickEnd(promotionData.current.target.y, promotionData.current.target.x); //simulate click
   }
 
+  //right mouse button handlers
+  const startRMB = (e) => {
+    if (e.button !== 2) return; // right click only
+    e.preventDefault();
+
+    console.log("rmb");
+  };
+  const endRMB = (e) => {
+    if (e.button !== 2) return; // right click only
+    e.preventDefault();
+
+    console.log("release");
+
+    //initial canvas drawing test
+    const rect = canvasRef.current.getBoundingClientRect();
+    const squareY = Math.floor((e.clientY - rect.top) / 70);
+    const squareX = Math.floor((e.clientX - rect.top) / 70);
+
+    const posY = squareY * 70 + 35;
+    const posX = squareX * 70 + 35;
+
+    const ctx = canvasRef.current.getContext("2d");
+    ctx.beginPath();
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = '#787878';
+    ctx.arc(posX, posY, 30, 0, Math.PI * 2);
+    ctx.stroke();
+  };
+
   //generate board dynamically
   let board_rows = [];
   for(let y=7; y>=0; y--)
@@ -1484,7 +1512,7 @@ function ChessBoard()
         number = y+1;
       }
 
-      row_arr.push(<Square key={y+x} x_coord={alphabet} y_coord={number} css={board_array[y][x].cssClass} piececolor={board_array[y][x].color} state={board_array[y][x].piece} endSquare={()=>clickEnd(y,x)} movePiece={()=>ClickPiece(y,x)}/>);
+      row_arr.push(<Square key={y+x} x_coord={alphabet} y_coord={number} css={board_array[y][x].cssClass} piececolor={board_array[y][x].color} state={board_array[y][x].piece} endSquare={()=>clickEnd(y,x)} movePiece={()=>ClickPiece(y,x)} mouseDown={startRMB} mouseUp={endRMB}/>);
     }
     board_rows.push(<div key={y} className={'board-row row-'+y+' reverse-'+reverseBoard.current}>{row_arr}</div>);
   }
@@ -1504,7 +1532,10 @@ function ChessBoard()
   <div className='layout-wrapper'>
     {clock_top}
     <div className='board-wrapper'>
-      <div className={'chess-board reverse-'+reverseBoard.current}>{board_rows}</div>
+      <div className='board-container' onContextMenu={(e) => e.preventDefault()}>
+        <div className={'chess-board reverse-'+reverseBoard.current}>{board_rows}</div>
+        <canvas ref={canvasRef} className='canvas-overlay' width='562' height='562'></canvas>
+      </div>
       <div className='info-panel'>
         <div className="turn-counter">{playTurn+" to move"}</div>
         <MoveHistory history={history} selected={historyIndex} browseHistory={browseHistory}/>
@@ -1725,7 +1756,7 @@ function MoveHistory({history, selected, browseHistory})
 }
 
 //chess board square
-function Square({index, x_coord, y_coord, css, piececolor, state, movePiece, endSquare})
+function Square({index, x_coord, y_coord, css, piececolor, state, movePiece, endSquare, mouseDown, mouseUp})
 {
   let piece = null;
   if(state === null) //empty square
@@ -1742,7 +1773,7 @@ function Square({index, x_coord, y_coord, css, piececolor, state, movePiece, end
   }
   //return coordinates and piece, coordinates are for x and y axis
   return (
-    <div onClick={endSquare} className={"square"}>
+    <div onMouseDown={mouseDown} onMouseUp={mouseUp} onClick={endSquare} className={"square"}>
       <Coordinate alphabet={x_coord} number={null}/>
       <Coordinate alphabet={null} number={y_coord}/>
       {piece}

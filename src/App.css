@@ -404,3 +404,11 @@ body
   left: 10px;
   font-weight: bold;
 }
+
+.canvas-overlay
+{
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
