@@ -1,7 +1,6 @@
 /*
 TODO:
-- clean clickPiece and clickEnd function into smaller functions
-- canvas drawing logic
+- clean main component logic into smaller functions
 
 - AI opponent?
 - promotion menu piece color shows always as black?
@@ -1117,6 +1116,12 @@ function isOccupied(piece)
   }
 }
 
+//return center coordinate for given square for canvas
+function coordToCanvas(coord)
+{
+  return coord * 70 + 35;
+}
+
 //chess board
 function ChessBoard() 
 {
@@ -1146,7 +1151,9 @@ function ChessBoard()
   let promotionData = useRef({menu: false, target: {x: null, y: null}, legalMoves: [], piece: null}); //promotion data
   let timerWhite = useRef(null);
   let timerBlack = useRef(null);
-  const canvasRef = useRef(null);
+  let canvasRef = useRef(null);
+  let canvasStart = useRef({x: null, y: null});
+
 
   let gameData = {board_data: board_array, turn: playTurn, history: history};
 
@@ -1202,6 +1209,11 @@ function ChessBoard()
     const startY = selectedCoordY.current;
     const startX = selectedCoordX.current;
     const piece = selectedType.current;
+
+    //clear canvas
+    const context = canvasRef.current.getContext('2d');
+    context.beginPath();
+    context.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
 
     if(!(endY === startY && endX === startX)) //ignore clicks on same square as selected piece
     {
@@ -1469,28 +1481,70 @@ function ChessBoard()
     if (e.button !== 2) return; // right click only
     e.preventDefault();
 
-    console.log("rmb");
+    //save starting position for drag
+    const rect = canvasRef.current.getBoundingClientRect();
+    const squareY = Math.floor((e.clientY - rect.top) / 70);
+    const squareX = Math.floor((e.clientX - rect.left) / 70);
+
+    canvasStart.current = {x: squareX, y: squareY}
   };
   const endRMB = (e) => {
     if (e.button !== 2) return; // right click only
     e.preventDefault();
-
-    console.log("release");
-
-    //initial canvas drawing test
+    //ending position for drag
     const rect = canvasRef.current.getBoundingClientRect();
     const squareY = Math.floor((e.clientY - rect.top) / 70);
-    const squareX = Math.floor((e.clientX - rect.top) / 70);
+    const squareX = Math.floor((e.clientX - rect.left) / 70);
 
-    const posY = squareY * 70 + 35;
-    const posX = squareX * 70 + 35;
+    //positions for square centers
+    const startY = coordToCanvas(canvasStart.current.y);
+    const startX = coordToCanvas(canvasStart.current.x);
+    const posY = coordToCanvas(squareY);
+    const posX = coordToCanvas(squareX);
 
+    //init canvas style
     const ctx = canvasRef.current.getContext("2d");
     ctx.beginPath();
-    ctx.lineWidth = 5;
     ctx.strokeStyle = '#787878';
-    ctx.arc(posX, posY, 30, 0, Math.PI * 2);
-    ctx.stroke();
+    ctx.fillStyle = '#787878';
+    //draw circle if drag/click ends on same square as start
+    if(canvasStart.current.x === squareX && canvasStart.current.y === squareY)
+    {
+      //circle
+      ctx.lineWidth = 5;
+      ctx.arc(posX, posY, 30, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    else //draw arrow
+    {
+      // Arrow shaft
+      ctx.lineWidth = 10;
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(posX, posY);
+      ctx.stroke();
+
+      //angle for arrowhead
+      const dx = posX - startX;
+      const dy = posY - startY;
+      const angle = Math.atan2(dy, dx);
+
+      // Arrowhead
+      const arrow_size = 40;
+      const arrow_tip_x = posX + (arrow_size/2) * Math.cos(angle);
+      const arrow_tip_y = posY + (arrow_size/2) * Math.sin(angle);
+      ctx.beginPath();
+      ctx.moveTo(arrow_tip_x, arrow_tip_y);
+      ctx.lineTo(
+        arrow_tip_x - arrow_size * Math.cos(angle - Math.PI / 6),
+        arrow_tip_y - arrow_size * Math.sin(angle - Math.PI / 6)
+      );
+      ctx.lineTo(
+        arrow_tip_x - arrow_size * Math.cos(angle + Math.PI / 6),
+        arrow_tip_y - arrow_size * Math.sin(angle + Math.PI / 6)
+      );
+      ctx.closePath();
+      ctx.fill();
+    }
   };
 
   //generate board dynamically
