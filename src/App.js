@@ -1,8 +1,7 @@
 /*
 TODO:
-- clean main component logic into smaller functions
-
 - AI opponent?
+- captured piece colors?
 - promotion menu piece color shows always as black?
 - promotion menu position for black (non issue? only matters when playing both sides)
 - timer pauses when out of focus, use date based timer or possible irrelevant without serverside?
@@ -910,6 +909,181 @@ function setSimpleHistory(data)
   return arr;
 }
 
+//initializes canvas context to initial values
+function initCanvas(canvas)
+{
+  const ctx = canvas.getContext("2d");
+  ctx.beginPath();
+  ctx.strokeStyle = '#787878';
+  ctx.fillStyle = '#787878';
+
+  return ctx;
+}
+
+//clears canvas on click
+function clearCanvas(canvas)
+{
+  const context = canvas.getContext('2d');
+  context.beginPath();
+  context.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+//draws circle to canvas
+function drawCircle(ctx, x, y)
+{
+  ctx.lineWidth = 5;
+  ctx.arc(x, y, 30, 0, Math.PI * 2);
+  ctx.stroke();
+}
+
+//draws arrow to canvas
+function drawArrow(ctx, startX, startY, posX, posY)
+{
+  // Arrow shaft
+  ctx.lineWidth = 10;
+  ctx.moveTo(startX, startY);
+  ctx.lineTo(posX, posY);
+  ctx.stroke();
+
+  //angle for arrowhead
+  const dx = posX - startX;
+  const dy = posY - startY;
+  const angle = Math.atan2(dy, dx);
+
+  // Arrowhead
+  const arrow_size = 40;
+  const arrow_tip_x = posX + (arrow_size/2) * Math.cos(angle);
+  const arrow_tip_y = posY + (arrow_size/2) * Math.sin(angle);
+  ctx.beginPath();
+  ctx.moveTo(arrow_tip_x, arrow_tip_y);
+  ctx.lineTo(
+    arrow_tip_x - arrow_size * Math.cos(angle - Math.PI / 6),
+    arrow_tip_y - arrow_size * Math.sin(angle - Math.PI / 6)
+  );
+  ctx.lineTo(
+    arrow_tip_x - arrow_size * Math.cos(angle + Math.PI / 6),
+    arrow_tip_y - arrow_size * Math.sin(angle + Math.PI / 6)
+  );
+  ctx.closePath();
+  ctx.fill();
+}
+
+//removes highlights after piece is unselected
+function removeHighLights(moves, copy, startY, startX)
+{
+  const piece_obj = {piece: null};
+  for(let i=0; i<moves.length; i++)
+  {
+    let coordY = moves[i].y;
+    let coordX = moves[i].x;
+
+    //reset selected piece and captured piece classes
+    copy[coordY][coordX].cssClass = "";
+    copy[startY][startX].cssClass = "";
+    if(copy[coordY][coordX].piece === "●")
+    {
+      copy[coordY][coordX] = new PieceObject(piece_obj);
+    }
+  }
+}
+
+//handles special moves such as castling, en passant and promotion
+function handleSpecialMoves(moves, copy, coords, move, gameData)
+{
+  let piece_obj = {};
+  let special = moves[move].special;
+  switch(special)
+  {
+    case "castle_king":
+      piece_obj = {piece: "♜", color: gameData.turn, hasMoved: true};
+      copy[coords.endY][5] = new PieceObject(piece_obj);//move rook to other side of king
+      piece_obj = {piece: null};
+      copy[coords.endY][7] = new PieceObject(piece_obj); //clear rook original position
+      break;
+    case "castle_queen":
+      piece_obj = {piece: "♜", color: gameData.turn, hasMoved: true};
+      copy[coords.endY][3] = new PieceObject(piece_obj);//move rook to other side of king
+      piece_obj = {piece: null};
+      copy[coords.endY][0] = new PieceObject(piece_obj); //clear rook original position
+      break;
+    case "en_passant":
+      piece_obj = {piece: null};
+      copy[coords.startY][coords.endX] = new PieceObject(piece_obj); //clear pawn being captured
+      break;
+    case "promotion_confirm": //selected from promotion submenu
+      piece_obj = {piece: gameData.promotionData.piece, color: gameData.turn, hasMoved: true};
+      copy[coords.endY][coords.endX] = new PieceObject(piece_obj);//turn pawn into selected piece
+      break;
+    default:
+      break;
+  }
+  return special;
+}
+
+//sets game over status and winner message
+function gameOverStatus(game_over, new_history, gameWinner, setGameOver, gameData)
+{
+  switch (game_over)
+  {
+    case "CHECKMATE":
+      new_history[new_history.length-1].checkmate = true; //mark last move as checkmate for notation
+      gameWinner.current = gameData.turn.charAt(0).toUpperCase() + gameData.turn.slice(1)+" wins!";
+      setGameOver("CHECKMATE");
+      break;
+    case "STALEMATE":
+      gameWinner.current = "Draw";
+      setGameOver("STALEMATE");
+      break;
+    case "50-MOVE":
+      gameWinner.current = "Draw";
+      setGameOver("50-MOVE RULE");
+      break;
+    case "REPETITION":
+      gameWinner.current = "Draw";
+      setGameOver("THREEFOLD REPETITION");
+      break;
+    case "INSUFFICIENT":
+      gameWinner.current = "Draw";
+      setGameOver("INSUFFICIENT MATERIAL");
+      break;
+    default:
+      break;
+  }
+}
+
+//finds identical pieces which can move to same squares to set the correct notation
+function setIdenticalNotation(piece, gameData, coords, new_history)
+{
+  if(["♜", "♞", "♝", "♛"].includes(piece))
+  {
+    let identical_arr = [];
+    //loop through data to find identical piece
+    for(let i=0; i<gameData.board_data.length; i++)
+    {
+      for(let j=0; j<gameData.board_data[i].length; j++)
+      {
+        if(gameData.board_data[i][j].piece === piece && gameData.board_data[i][j].color === gameData.turn && !(i === coords.startY && j === coords.startX)) //piece that is not the moving piece
+        {
+          //found identical piece, find all moves
+          getLegalMoves(i, j, piece, false, gameData, gameData.turn).forEach(move => 
+          {
+            //if identical piece can move to same square
+            if(move.x === coords.endX && move.y === coords.endY)
+            {
+              let identical = {x: j, y: i};
+              identical_arr.push(identical);
+            }
+          });
+        }
+      }
+    }
+    new_history[new_history.length-1].identical = identical_arr;
+  }
+  new_history[new_history.length-1].notation = moveToNotation(new_history[new_history.length-1]);
+}
+
+
+//HELPER FUNCTIONS
 //value of lost pieces
 function calcPieceValues(array)
 {
@@ -1154,7 +1328,6 @@ function ChessBoard()
   let canvasRef = useRef(null);
   let canvasStart = useRef({x: null, y: null});
 
-
   let gameData = {board_data: board_array, turn: playTurn, history: history};
 
   //initialize board pieces dynamically, empty depencies array causes it to run only once
@@ -1179,6 +1352,7 @@ function ChessBoard()
         legalMoves.current = []; //coordX, coordY, capture
         legalMoves.current = getLegalMoves(index_y, index_x, piece, false, gameData, gameData.turn);
 
+        //get unfiltered opponent moves
         let opponentMoves = getAllMoves(gameData, false, opposite(playTurn));
         //filter pins for selected piece moves in case you are pinned
         legalMoves.current = pinLogic(legalMoves.current, opponentMoves, board_array, index_y, index_x, piece);
@@ -1209,114 +1383,49 @@ function ChessBoard()
     const startY = selectedCoordY.current;
     const startX = selectedCoordX.current;
     const piece = selectedType.current;
+    const coords = {startX, startY, endX, endY};
 
-    //clear canvas
-    const context = canvasRef.current.getContext('2d');
-    context.beginPath();
-    context.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+    clearCanvas(canvasRef.current);
 
-    if(!(endY === startY && endX === startX)) //ignore clicks on same square as selected piece
+    //ignore clicks on same square as selected piece
+    if(!(endY === startY && endX === startX)) 
     {
+      //create deep copy of board_array
       const copy = board_array.map(row => row.map(cell => ({ ...cell })));
-
       const moveIndex = legalMoves.current.findIndex(e => e.y === endY && e.x === endX);
-      if(moveIndex !== -1) //legal move
+      if(moveIndex !== -1) //legal move check
       {
-        if(legalMoves.current[moveIndex].special === "promotion") //open promotion menu and handle promotion
+        //open promotion menu and handle promotion
+        if(legalMoves.current[moveIndex].special === "promotion")
         {
-          promotionData.current = {menu: true, target: {x: endX, y: endY}, legalMoves: legalMoves.current};
+          promotionData.current = {menu: true, target: {x: endX, y: endY}, legalMoves: legalMoves.current, promotionData: promotionData.current};
         }
         else
         {
           let capture_piece = copy[endY][endX].piece;
-
           piece_obj = {piece: piece, color: playTurn, hasMoved: true};
-          copy[endY][endX] = new PieceObject(piece_obj);//move piece
-          piece_obj = {piece: null};
-          copy[startY][startX] = new PieceObject(piece_obj); //clear original position
+          copy[endY][endX] = new PieceObject(piece_obj); //move piece
+          copy[startY][startX] = new PieceObject({piece: null}); //clear original position
           
-          if(history.length === 0)
-          {
-            hasMoved.current.white = true;
-          }
-          if(history.length === 1)
-          {
-            hasMoved.current.black = true;
-          }
+          if (history.length === 0) hasMoved.current.white = true;
+          if (history.length === 1) hasMoved.current.black = true;
           
           //special move cases
-          let special = legalMoves.current[moveIndex].special
-          switch(special)
-          {
-            case "castle_king":
-              piece_obj = {piece: "♜", color: playTurn, hasMoved: true};
-              copy[endY][5] = new PieceObject(piece_obj);//move rook to other side of king
-              piece_obj = {piece: null};
-              copy[endY][7] = new PieceObject(piece_obj); //clear rook original position
-              break;
-            case "castle_queen":
-              piece_obj = {piece: "♜", color: playTurn, hasMoved: true};
-              copy[endY][3] = new PieceObject(piece_obj);//move rook to other side of king
-              piece_obj = {piece: null};
-              copy[endY][0] = new PieceObject(piece_obj); //clear rook original position
-              break;
-            case "en_passant":
-              piece_obj = {piece: null};
-              copy[startY][endX] = new PieceObject(piece_obj); //clear pawn being captured
-              break;
-            case "promotion_confirm": //selected from promotion submenu
-              piece_obj = {piece: promotionData.current.piece, color: playTurn, hasMoved: true};
-              copy[endY][endX] = new PieceObject(piece_obj);//turn pawn into selected piece
-              break;
-            default:
-              break;
-          }
+          let special = handleSpecialMoves(legalMoves.current, copy, coords, moveIndex, gameData);
 
           //captured pieces
-          if(isOccupied(capture_piece))
-          {
-            if(playTurn === "white")
-            {
-              setBlackCaptures([...blackCaptures, capture_piece]);
-            }
-            else
-            {
-              setWhiteCaptures([...whiteCaptures, capture_piece]);
-            }
+          if (isOccupied(capture_piece)) {
+            playTurn === "white" ? setBlackCaptures([...blackCaptures, capture_piece]) : setWhiteCaptures([...whiteCaptures, capture_piece]);
           }
 
+          //update history
           let history_obj = {data: copy, start: {x: startX, y: startY}, end: {x: endX, y: endY}, piece: piece, color: playTurn, capture: capture_piece, special: special, checkmate: false, check: false, promotion: promotionData.current, identical: [], notation: ""};
           let new_history = [...history,history_obj];
 
           //checks game ending conditions
-          gameData = {board_data: copy, turn: playTurn, history: new_history};
+          gameData = {board_data: copy, turn: playTurn, history: new_history}; //use copy to get updated data for current move
           const game_over = isGameOver(gameData, simpleHistory.current);
-          switch (game_over) 
-          {
-            case "CHECKMATE":
-              new_history[new_history.length-1].checkmate = true; //mark last move as checkmate for notation
-              gameWinner.current = playTurn.charAt(0).toUpperCase() + playTurn.slice(1)+" wins!";
-              setGameOver("CHECKMATE");
-              break;
-            case "STALEMATE":
-              gameWinner.current = "Draw";
-              setGameOver("STALEMATE");
-              break;
-            case "50-MOVE":
-              gameWinner.current = "Draw";
-              setGameOver("50-MOVE RULE");
-              break;
-            case "REPETITION":
-              gameWinner.current = "Draw";
-              setGameOver("THREEFOLD REPETITION");
-              break;
-            case "INSUFFICIENT":
-              gameWinner.current = "Draw";
-              setGameOver("INSUFFICIENT MATERIAL");
-              break;
-            default:
-              break;
-          }
+          gameOverStatus(game_over, new_history, gameWinner, setGameOver, gameData);
 
           //update history
           let opponentMoves = getAllMoves(gameData, false, playTurn);
@@ -1324,32 +1433,8 @@ function ChessBoard()
           new_history[new_history.length-1].check = history_check; //mark last move as check for notation
 
           //find identical piece that can move to same square, bishop and queen can happen after promotion
-          if(["♜", "♞", "♝", "♛"].includes(piece))
-          {
-            let identical_arr = [];
-            //loop through data to find identical piece
-            for(let i=0; i<board_array.length; i++)
-            {
-              for(let j=0; j<board_array[i].length; j++)
-              {
-                if(board_array[i][j].piece === piece && board_array[i][j].color === playTurn && !(i === startY && j === startX)) //piece that is not the moving piece
-                {
-                  //found identical piece, find all moves
-                  getLegalMoves(i, j, piece, false, {board_data: board_array, turn: playTurn, history: new_history}, playTurn).forEach(move => 
-                  {
-                    //if identical piece can move to same square
-                    if(move.x === endX && move.y === endY)
-                    {
-                      let identical = {x: j, y: i};
-                      identical_arr.push(identical);
-                    }
-                  });
-                }
-              }
-            }
-            new_history[new_history.length-1].identical = identical_arr;
-          }
-          new_history[new_history.length-1].notation = moveToNotation(new_history[new_history.length-1]);
+          gameData = {board_data: board_array, turn: playTurn, history: new_history};
+          setIdenticalNotation(piece, gameData, coords, new_history);
 
           //set history values
           let simple_move_data = setSimpleHistory(copy);
@@ -1362,21 +1447,7 @@ function ChessBoard()
           playSound();
         }
       }
-      //remove highlights, happens also on illegal move attempt to cancel selection
-      for(let i=0; i<legalMoves.current.length; i++)
-      {
-        let coordY = legalMoves.current[i].y;
-        let coordX = legalMoves.current[i].x;
-
-        //reset selected piece and captured piece classes
-        copy[coordY][coordX].cssClass = "";
-        copy[startY][startX].cssClass = "";
-        if(copy[coordY][coordX].piece === "●")
-        {
-          piece_obj = {piece: null};
-          copy[coordY][coordX] = new PieceObject(piece_obj);
-        }
-      }
+      removeHighLights(legalMoves.current, copy, startY, startX);
       legalMoves.current = [];
       setBoardArray(copy);
     }
@@ -1445,7 +1516,7 @@ function ChessBoard()
   //sets timers
   function setTimer(deciseconds)
   {
-    //infinite timer sets time to 9999
+    //infinite timer sets time to 99999
     if(deciseconds === null)
     {
       timerWhite.current = 99999;
@@ -1503,47 +1574,15 @@ function ChessBoard()
     const posX = coordToCanvas(squareX);
 
     //init canvas style
-    const ctx = canvasRef.current.getContext("2d");
-    ctx.beginPath();
-    ctx.strokeStyle = '#787878';
-    ctx.fillStyle = '#787878';
+    const ctx = initCanvas(canvasRef.current);
     //draw circle if drag/click ends on same square as start
     if(canvasStart.current.x === squareX && canvasStart.current.y === squareY)
     {
-      //circle
-      ctx.lineWidth = 5;
-      ctx.arc(posX, posY, 30, 0, Math.PI * 2);
-      ctx.stroke();
+      drawCircle(ctx, posX, posY);
     }
     else //draw arrow
     {
-      // Arrow shaft
-      ctx.lineWidth = 10;
-      ctx.moveTo(startX, startY);
-      ctx.lineTo(posX, posY);
-      ctx.stroke();
-
-      //angle for arrowhead
-      const dx = posX - startX;
-      const dy = posY - startY;
-      const angle = Math.atan2(dy, dx);
-
-      // Arrowhead
-      const arrow_size = 40;
-      const arrow_tip_x = posX + (arrow_size/2) * Math.cos(angle);
-      const arrow_tip_y = posY + (arrow_size/2) * Math.sin(angle);
-      ctx.beginPath();
-      ctx.moveTo(arrow_tip_x, arrow_tip_y);
-      ctx.lineTo(
-        arrow_tip_x - arrow_size * Math.cos(angle - Math.PI / 6),
-        arrow_tip_y - arrow_size * Math.sin(angle - Math.PI / 6)
-      );
-      ctx.lineTo(
-        arrow_tip_x - arrow_size * Math.cos(angle + Math.PI / 6),
-        arrow_tip_y - arrow_size * Math.sin(angle + Math.PI / 6)
-      );
-      ctx.closePath();
-      ctx.fill();
+      drawArrow(ctx, startX, startY, posX, posY);
     }
   };
 
@@ -1591,7 +1630,6 @@ function ChessBoard()
         <canvas ref={canvasRef} className='canvas-overlay' width='562' height='562'></canvas>
       </div>
       <div className='info-panel'>
-        <div className="turn-counter">{playTurn+" to move"}</div>
         <MoveHistory history={history} selected={historyIndex} browseHistory={browseHistory}/>
         <button className='forfeit-button action-button' onClick={()=>surrender()}>Forfeit</button>
       </div>
