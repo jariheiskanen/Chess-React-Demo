@@ -222,18 +222,17 @@ body
   background-color: rgb(153 163 255 / 50%);
 }
 
-.end-popup
+.popup
 {
   width: 280px;
   position: absolute;
+  left: 141px;
   background-color: white;
   z-index: 100;
-  left: 141px;
-  top: 186px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2), 0 4px 6px rgba(0, 0, 0, 0.2);
 }
 
-.end-popup h4
+.popup h4
 {
   letter-spacing: 1px;
   line-height: 25px;
@@ -243,14 +242,24 @@ body
   padding: 20px 50px;
 }
 
-.end-popup p 
+.popup p 
 {
   margin: 0;
 }
 
-.end-popup div
+.popup div
 {
   padding: 20px 50px;
+}
+
+.end-popup
+{
+  top: 186px;
+}
+
+.start-popup
+{
+  top: 144px;
 }
 
 .action-button

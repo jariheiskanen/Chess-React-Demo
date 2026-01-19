@@ -988,7 +988,7 @@ function removeHighLights(moves, copy, startY, startX)
 }
 
 //handles special moves such as castling, en passant and promotion
-function handleSpecialMoves(moves, copy, coords, move, gameData)
+function handleSpecialMoves(moves, copy, coords, move, gameData, promotionData)
 {
   let piece_obj = {};
   let special = moves[move].special;
@@ -1011,7 +1011,7 @@ function handleSpecialMoves(moves, copy, coords, move, gameData)
       copy[coords.startY][coords.endX] = new PieceObject(piece_obj); //clear pawn being captured
       break;
     case "promotion_confirm": //selected from promotion submenu
-      piece_obj = {piece: gameData.promotionData.piece, color: gameData.turn, hasMoved: true};
+      piece_obj = {piece: promotionData.piece, color: gameData.turn, hasMoved: true};
       copy[coords.endY][coords.endX] = new PieceObject(piece_obj);//turn pawn into selected piece
       break;
     default:
@@ -1411,7 +1411,7 @@ function ChessBoard()
           if (history.length === 1) hasMoved.current.black = true;
           
           //special move cases
-          let special = handleSpecialMoves(legalMoves.current, copy, coords, moveIndex, gameData);
+          let special = handleSpecialMoves(legalMoves.current, copy, coords, moveIndex, gameData, promotionData.current);
 
           //captured pieces
           if (isOccupied(capture_piece)) {
@@ -1761,7 +1761,7 @@ function StartScreen({onSetTimer, gameInit})
   }
   else
   {
-    return <div className='end-popup'>
+    return <div className='popup start-popup'>
       <h4>Start game</h4>
       <div>
         <form>
@@ -1795,7 +1795,7 @@ function EndScreen({gameStatus, gameWinner, resetBoard})
   }
   else
   {
-    return <div className='end-popup'>
+    return <div className='popup end-popup'>
       <h4>{gameStatus}</h4>
       <div>
         <p>{gameWinner}</p>
